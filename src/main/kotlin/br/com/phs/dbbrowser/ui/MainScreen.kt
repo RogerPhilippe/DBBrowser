@@ -1,0 +1,328 @@
+package br.com.phs.dbbrowser.db.ui
+
+import br.com.phs.dbbrowser.db.ui.utils.ScreenUtils
+import br.com.phs.dbbrowser.db.ui.utils.ScreenUtils.Companion.devScreenMode
+import br.com.phs.dbbrowser.db.ui.utils.ScreenUtils.Companion.mainScreenHeight
+import br.com.phs.dbbrowser.db.ui.utils.ScreenUtils.Companion.mainScreenWidth
+import br.com.phs.dbbrowser.db.utils.*
+import br.com.phs.dbbrowser.utils.RowNumberTable
+import br.com.phs.dbbrowser.utils.TextLineNumber
+import br.com.phs.dbcore.ConnectDB
+import br.com.phs.dbcore.ResultObject
+import br.com.phs.dbcore.ResultTypeEnum
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import java.awt.*
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.awt.event.MouseListener
+import java.awt.event.MouseMotionAdapter
+import java.util.*
+import javax.swing.*
+import javax.swing.filechooser.FileNameExtensionFilter
+import javax.swing.text.DefaultCaret
+import kotlin.system.exitProcess
+
+class MainScreen: JFrame() {
+
+    private val appName = "DBBrowser"
+    private var mouseDownCompCoords: Point? = null
+    private val gd = GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice
+    private var resultObject: ResultObject? = null
+    private val fileChooser = JFileChooser()
+    private val filterDQLiteDB = FileNameExtensionFilter("DB file", "db")
+    private var dbPath = ""
+
+    // **** Components ****
+    private val title = JLabel(appName)
+    private val terminalTextArea = JTextArea()
+    private val sqlTextArea = JTextArea()
+
+    init {
+        mainScreenWidth = gd.displayMode.width * .70
+        mainScreenHeight = gd.displayMode.height * .90
+        devScreenMode = false
+        createUI()
+    }
+
+    private fun createUI() {
+
+        defaultCloseOperation = EXIT_ON_CLOSE
+        setSize(mainScreenWidth.toInt(), mainScreenHeight.toInt())
+        setLocationRelativeTo(null)
+        isUndecorated = true
+
+        addMouseMotionListener(getMouseMotionListener(this))
+
+        addComponents(this.contentPane)
+
+    }
+
+    private fun addComponents(pane: Container) {
+
+        // **** MAIN PANEL ****
+        val pnlPrincipal = JPanel()
+        pnlPrincipal.setBounds(0, 0, mainScreenWidth.toInt(), mainScreenHeight.toInt())
+        pnlPrincipal.layout = null
+        pnlPrincipal.border = ScreenUtils().tlrbBorder()
+
+        // **** TITLE PANEL BAR ****
+        val titleBarPanel = JPanel()
+        titleBarPanel.setBounds(0, 0, mainScreenWidth.toInt(), 32)
+        titleBarPanel.layout = null
+        titleBarPanel.border = ScreenUtils().tlrBorder()
+        pnlPrincipal.add(titleBarPanel)
+        titleBarPanel.addMouseListener(handMouseClickListener(
+            {
+                cursor = Cursor(Cursor.HAND_CURSOR)
+                mouseDownCompCoords = null
+            },
+            {
+                cursor = Cursor(Cursor.MOVE_CURSOR)
+                mouseDownCompCoords = it?.point
+            }))
+        titleBarPanel.addMouseMotionListener(getMouseMotionListenerTitleBar())
+
+        // **** TITLE ****
+        title.setBounds(20, 0, titleBarPanel.width-32, titleBarPanel.height)
+        titleBarPanel.add(title)
+
+        // **** CLOSE BTN ****
+        val img = ImageIcon(javaClass.classLoader.getResource("close.png")).image
+        val closeBtn = JLabel(ImageIcon(getScaledImage(img, 20, 20)))
+        closeBtn.setBounds(mainScreenWidth.toInt()-32, 0, 32, 32)
+        closeBtn.horizontalAlignment = SwingConstants.CENTER
+        closeBtn.verticalAlignment = SwingConstants.CENTER
+        closeBtn.addMouseListener(handMouseClickListener({
+            exitProcess(0)
+        }))
+        closeBtn.border = ScreenUtils().getBorder()
+        titleBarPanel.add(closeBtn)
+
+        // **** MENU BAR ****
+        val menuBar = JMenuBar()
+        val fileMenu = JMenu(getLabel(0, FILE))
+        val editMenu = JMenu(getLabel(0, EDIT))
+        val settingsMenu = JMenu(getLabel(0, SETTINGS))
+        val aboutMenu = JMenu(getLabel(0, ABOUT))
+        menuBar.add(fileMenu)
+        menuBar.add(editMenu)
+        menuBar.add(settingsMenu)
+        menuBar.add(aboutMenu)
+        val newAction = JMenuItem("New")
+        val openAction = JMenuItem("Open")
+        val exitAction = JMenuItem(getLabel(0, EXIT))
+        exitAction.addActionListener {
+            exitProcess(0)
+        }
+        val cutAction = JMenuItem("Cut")
+        val copyAction = JMenuItem("Copy")
+        val pasteAction = JMenuItem("Paste")
+        fileMenu.add(newAction)
+        fileMenu.add(openAction)
+        fileMenu.addSeparator()
+        fileMenu.add(exitAction)
+        editMenu.add(cutAction)
+        editMenu.add(copyAction)
+        editMenu.add(pasteAction)
+        menuBar.setBounds(1,titleBarPanel.height, mainScreenWidth.toInt()-2, 24)
+        pnlPrincipal.add(menuBar)
+
+        // **** BTNs PANEL ****
+        val pnlBtn = JPanel()
+        val yTmp = menuBar.y + menuBar.height
+        pnlBtn.setBounds(1, yTmp, mainScreenWidth.toInt()-2, 70)
+        pnlBtn.layout = null
+        pnlBtn.border = ScreenUtils().getBorder()
+        pnlPrincipal.add(pnlBtn)
+        // **** BTNs PANEL PLAY ****
+        val playBtn = makeBtn("play_icon_512.png")
+        playBtn.setBounds(10, ((pnlBtn.height/2)-23), 46, 46)
+        pnlBtn.add(playBtn)
+        // **** BTNs PANEL OPEN DB ****
+        val openDbBtn = makeBtn("open_database_icon.png")
+        openDbBtn.setBounds(playBtn.width+20, ((pnlBtn.height/2)-23), 46, 46)
+        pnlBtn.add(openDbBtn)
+
+        // **** SQL Panel ****
+        val sqlPanel = JPanel()
+        val yTmp2 = pnlBtn.y + pnlBtn.height
+        sqlPanel.setBounds(10, yTmp2, mainScreenWidth.toInt()-20, 300)
+        sqlPanel.border = BorderFactory.createTitledBorder(getLabel(0, SQL_CMD_LABEL))
+        sqlPanel.layout = null
+        pnlPrincipal.add(sqlPanel)
+        // **** SQL TEXT AREA ****
+        sqlTextArea.font = sqlTextArea.font.deriveFont(14f)
+        sqlTextArea.lineWrap = true
+        val tln = TextLineNumber(sqlTextArea)
+        val sqlTextAreaScrollPane = JScrollPane(sqlTextArea)
+        sqlTextAreaScrollPane.setRowHeaderView(tln)
+        sqlTextAreaScrollPane.horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+        sqlTextAreaScrollPane.setBounds(10, 16, sqlPanel.width-20, sqlPanel.height-26)
+        sqlPanel.add(sqlTextAreaScrollPane)
+
+        // **** TERMINAL PANEL ****
+        val terminalPanel = JPanel()
+        terminalPanel.setBounds(10, (mainScreenHeight.toInt()-180), mainScreenWidth.toInt()-20, 170)
+        terminalPanel.border = BorderFactory.createTitledBorder(getLabel(0, TERMINAL))
+        terminalPanel.layout = null
+        pnlPrincipal.add(terminalPanel)
+        // **** TERMINAL TEXT AREA ****
+        terminalTextArea.lineWrap = true
+        terminalTextArea.isEditable = false
+        val caret = (terminalTextArea.caret as DefaultCaret)
+        caret.updatePolicy = DefaultCaret.ALWAYS_UPDATE
+        val terminalTextAreaScrollPane = JScrollPane()
+        terminalTextAreaScrollPane.setViewportView(terminalTextArea)
+        terminalTextAreaScrollPane.setBounds(10, 16, terminalPanel.width-20, terminalPanel.height-26)
+        terminalPanel.add(terminalTextAreaScrollPane)
+
+        // **** TABLE PANEL ****
+        val tablePanel = JPanel()
+        val yTmp3 = sqlPanel.y + sqlPanel.height
+        tablePanel.setBounds(10, yTmp3+10, mainScreenWidth.toInt()-20, terminalPanel.y - (sqlPanel.y + sqlPanel.height)-20)
+        tablePanel.border = BorderFactory.createTitledBorder(getLabel(0, SQL_RESULT_LABEL))
+        tablePanel.layout = null
+        pnlPrincipal.add(tablePanel)
+
+        // BTN Listeners
+        playBtn.addMouseListener(handMouseClickListener({
+
+            if (dbPath.isEmpty()) {
+                addTerminalMsg("Selecione o banco de dados!")
+                return@handMouseClickListener
+            }
+
+            if (sqlTextArea.text.isNotEmpty()) {
+
+                tablePanel.removeAll()
+
+                addTerminalMsg("Executando...")
+                this.resultObject = ConnectDB.executeQuery(dbPath, sqlTextArea.text)
+                if (this.resultObject != null && this.resultObject?.hasError == false  &&
+                    this.resultObject?.columns?.isNotEmpty() == true && this.resultObject?.resultType == ResultTypeEnum.SELECT) {
+                    val columns: Array<String> = this.resultObject!!.columns
+                    val data: Array<Array<Any>> = this.resultObject!!.result
+                    // **** TABLE RESULT ****
+                    val table = JTable(data, columns)
+                    table.autoResizeMode = JTable.AUTO_RESIZE_OFF
+                    val rowTable = RowNumberTable(table)
+                    val tableResultScrollPane = JScrollPane(
+                        table,
+                        JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                        JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+                    )
+                    tableResultScrollPane.setRowHeaderView(rowTable)
+                    tableResultScrollPane.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
+                    tableResultScrollPane.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
+                    tablePanel.add(tableResultScrollPane)
+                } else if (this.resultObject != null && this.resultObject?.hasError == false) {
+                    addTerminalMsg("Comando executado.")
+                }
+
+                if (this.resultObject != null && this.resultObject?.hasError == false) {
+                    addTerminalMsg("Linhas retornadas ${this.resultObject?.result?.size ?: 0}")
+                    val args: MutableList<Any> = mutableListOf()
+                    args.add(getRandomHash())
+                    args.add(Calendar.getInstance().timeInMillis)
+                    args.add(sqlTextArea.text)
+                    ConnectDB.insertHistoric(args)
+                } else if (this.resultObject != null && this.resultObject?.hasError == true) {
+                    addTerminalMsg("Ocorreu um erro na execução ${this.resultObject?.errorMsg}")
+                }
+            }
+
+        }))
+
+        openDbBtn.addMouseListener(handMouseClickListener({
+
+            fileChooser.addChoosableFileFilter(filterDQLiteDB)
+            val returnVal = fileChooser.showOpenDialog(this)
+            if (returnVal == JFileChooser.APPROVE_OPTION) {
+                val file = fileChooser.selectedFile
+                dbPath = file.absolutePath
+                addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")
+                title.text = "$appName - ${file.absoluteFile}"
+            }
+        }))
+
+        pane.add(pnlPrincipal)
+
+    }
+
+    private fun handMouseClickListener(
+        released: (e: MouseEvent?)-> Unit,
+        pressed: ((e: MouseEvent?) -> Unit)? = null
+    ): MouseListener {
+        return object : MouseAdapter() {
+            override fun mouseEntered(e: MouseEvent?) {
+                cursor = Cursor(Cursor.HAND_CURSOR)
+            }
+            override fun mouseExited(e: MouseEvent?) {
+                cursor = Cursor(Cursor.DEFAULT_CURSOR)
+            }
+            override fun mouseReleased(e: MouseEvent?) {
+                released(e)
+            }
+            override fun mousePressed(e: MouseEvent) {
+                if (pressed != null)
+                    pressed(e)
+            }
+        }
+    }
+
+    private fun getMouseMotionListener(frame: JFrame): MouseMotionAdapter {
+        return object : MouseMotionAdapter() {
+            override fun mouseMoved(e: MouseEvent) {
+                super.mouseMoved(e)
+                val currCoords = e.locationOnScreen
+
+                cursor = if (currCoords.x <= frame.x +12 && currCoords.y >= (mainScreenHeight.toInt()+frame.y)-20) {
+                    Cursor(Cursor.NE_RESIZE_CURSOR)
+                } else if (currCoords.x <= frame.x +12) {
+                    Cursor(Cursor.E_RESIZE_CURSOR)
+                } else if (currCoords.x >= (mainScreenWidth.toInt()+frame.x)-12 &&
+                    (currCoords.y >= (mainScreenHeight.toInt()+frame.y)-20)) {
+                    Cursor(Cursor.NW_RESIZE_CURSOR)
+                } else if (currCoords.x >= (mainScreenWidth.toInt()+frame.x)-12) {
+                    Cursor(Cursor.W_RESIZE_CURSOR)
+                } else if (currCoords.y >= (mainScreenHeight.toInt()+frame.y)-20) {
+                    Cursor(Cursor.N_RESIZE_CURSOR)
+                } else {
+                    Cursor(Cursor.DEFAULT_CURSOR)
+                }
+            }
+        }
+    }
+
+    private fun getMouseMotionListenerTitleBar(): MouseMotionAdapter {
+        return object : MouseMotionAdapter() {
+            override fun mouseDragged(e: MouseEvent) {
+                val currCoords = e.locationOnScreen
+                setLocation(currCoords.x - (mouseDownCompCoords?.x?: 0), currCoords.y - (mouseDownCompCoords?.y?: 0))
+            }
+
+            override fun mouseMoved(e: MouseEvent) {
+                super.mouseMoved(e)
+                val currCoords = e.locationOnScreen
+            }
+        }
+    }
+
+    private fun addTerminalMsg(msg: String) = runBlocking {
+        withContext(Dispatchers.IO) {
+            terminalTextArea.append("${Date().toStringFormatted()} - $msg\n")
+        }
+    }
+
+    private fun makeBtn(iconName: String): JLabel {
+        val playBtnImg = ImageIcon(javaClass.classLoader.getResource(iconName)).image
+        val btn = JLabel(ImageIcon(getScaledImage(playBtnImg, 32, 32)))
+        btn.horizontalAlignment = SwingConstants.CENTER
+        btn.verticalAlignment = SwingConstants.CENTER
+        btn.border = ScreenUtils().tlrbBorder(Color.GRAY)
+        return  btn
+    }
+
+}

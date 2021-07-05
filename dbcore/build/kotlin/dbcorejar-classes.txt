@@ -1,0 +1,1 @@
+/home/rphilippe/DevEnv/Workspace/JavaKotlin/DBBrowser/dbcore/build/classes/kotlin/main/br/com/phs/dbcore/ConnectDB.class:/home/rphilippe/DevEnv/Workspace/JavaKotlin/DBBrowser/dbcore/build/classes/kotlin/main/br/com/phs/dbcore/ResultObject.class:/home/rphilippe/DevEnv/Workspace/JavaKotlin/DBBrowser/dbcore/build/classes/kotlin/main/br/com/phs/dbcore/ResultTypeEnum.class
