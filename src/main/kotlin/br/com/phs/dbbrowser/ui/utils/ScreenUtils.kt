@@ -1,4 +1,4 @@
-package br.com.phs.dbbrowser.db.ui.utils
+package br.com.phs.dbbrowser.ui.utils
 
 import java.awt.Color
 import javax.swing.BorderFactory

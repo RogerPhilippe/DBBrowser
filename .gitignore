@@ -24,3 +24,4 @@
 .build/
 /build/
 /main.db
+/dbcore/build/

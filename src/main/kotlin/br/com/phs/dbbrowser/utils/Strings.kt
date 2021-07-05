@@ -1,4 +1,4 @@
-package br.com.phs.dbbrowser.db.utils
+package br.com.phs.dbbrowser.utils
 
 const val FILE = 0
 const val EDIT = 1

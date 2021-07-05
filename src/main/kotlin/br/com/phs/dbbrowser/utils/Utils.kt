@@ -1,4 +1,4 @@
-package br.com.phs.dbbrowser.db.utils
+package br.com.phs.dbbrowser.utils
 
 import java.awt.Image
 import java.io.File
