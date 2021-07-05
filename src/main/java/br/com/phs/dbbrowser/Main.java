@@ -1,6 +1,6 @@
 package br.com.phs.dbbrowser;
 
-import br.com.phs.dbbrowser.db.ui.MainScreen;
+import br.com.phs.dbbrowser.ui.MainScreen;
 
 import java.awt.*;
 

@@ -1,4 +1,4 @@
-package br.com.phs.dbbrowser.db.ui
+package br.com.phs.dbbrowser.ui
 
 import br.com.phs.dbbrowser.db.ui.utils.ScreenUtils
 import br.com.phs.dbbrowser.db.ui.utils.ScreenUtils.Companion.devScreenMode
@@ -38,6 +38,7 @@ class MainScreen: JFrame() {
     private val title = JLabel(appName)
     private val terminalTextArea = JTextArea()
     private val sqlTextArea = JTextArea()
+    private val tablePanel = JPanel()
 
     init {
         mainScreenWidth = gd.displayMode.width * .70
@@ -179,7 +180,6 @@ class MainScreen: JFrame() {
         terminalPanel.add(terminalTextAreaScrollPane)
 
         // **** TABLE PANEL ****
-        val tablePanel = JPanel()
         val yTmp3 = sqlPanel.y + sqlPanel.height
         tablePanel.setBounds(10, yTmp3+10, mainScreenWidth.toInt()-20, terminalPanel.y - (sqlPanel.y + sqlPanel.height)-20)
         tablePanel.border = BorderFactory.createTitledBorder(getLabel(0, SQL_RESULT_LABEL))
@@ -196,40 +196,13 @@ class MainScreen: JFrame() {
 
             if (sqlTextArea.text.isNotEmpty()) {
 
-                tablePanel.removeAll()
+                val commands = sqlTextArea.text.replace("\n", "").getLines()
 
-                addTerminalMsg("Executando...")
-                this.resultObject = ConnectDB.executeQuery(dbPath, sqlTextArea.text)
-                if (this.resultObject != null && this.resultObject?.hasError == false  &&
-                    this.resultObject?.columns?.isNotEmpty() == true && this.resultObject?.resultType == ResultTypeEnum.SELECT) {
-                    val columns: Array<String> = this.resultObject!!.columns
-                    val data: Array<Array<Any>> = this.resultObject!!.result
-                    // **** TABLE RESULT ****
-                    val table = JTable(data, columns)
-                    table.autoResizeMode = JTable.AUTO_RESIZE_OFF
-                    val rowTable = RowNumberTable(table)
-                    val tableResultScrollPane = JScrollPane(
-                        table,
-                        JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                        JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-                    )
-                    tableResultScrollPane.setRowHeaderView(rowTable)
-                    tableResultScrollPane.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
-                    tableResultScrollPane.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
-                    tablePanel.add(tableResultScrollPane)
-                } else if (this.resultObject != null && this.resultObject?.hasError == false) {
-                    addTerminalMsg("Comando executado.")
-                }
-
-                if (this.resultObject != null && this.resultObject?.hasError == false) {
-                    addTerminalMsg("Linhas retornadas ${this.resultObject?.result?.size ?: 0}")
-                    val args: MutableList<Any> = mutableListOf()
-                    args.add(getRandomHash())
-                    args.add(Calendar.getInstance().timeInMillis)
-                    args.add(sqlTextArea.text)
-                    ConnectDB.insertHistoric(args)
-                } else if (this.resultObject != null && this.resultObject?.hasError == true) {
-                    addTerminalMsg("Ocorreu um erro na execução ${this.resultObject?.errorMsg}")
+                for (command in commands) {
+                    if (command.isEmpty()) continue
+                    if (command.startsWith("--")) continue
+                    tablePanel.removeAll()
+                    execute(command)
                 }
             }
 
@@ -248,6 +221,44 @@ class MainScreen: JFrame() {
         }))
 
         pane.add(pnlPrincipal)
+
+    }
+
+    private fun execute(command: String) {
+
+        addTerminalMsg("Executando...")
+        this.resultObject = ConnectDB.executeQuery(dbPath, command)
+        if (this.resultObject != null && this.resultObject?.hasError == false  &&
+            this.resultObject?.columns?.isNotEmpty() == true && this.resultObject?.resultType == ResultTypeEnum.SELECT) {
+            val columns: Array<String> = this.resultObject!!.columns
+            val data: Array<Array<Any>> = this.resultObject!!.result
+            // **** TABLE RESULT ****
+            val table = JTable(data, columns)
+            table.autoResizeMode = JTable.AUTO_RESIZE_OFF
+            val rowTable = RowNumberTable(table)
+            val tableResultScrollPane = JScrollPane(
+                table,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+            )
+            tableResultScrollPane.setRowHeaderView(rowTable)
+            tableResultScrollPane.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
+            tableResultScrollPane.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
+            tablePanel.add(tableResultScrollPane)
+        } else if (this.resultObject != null && this.resultObject?.hasError == false) {
+            addTerminalMsg("Comando executado.")
+        }
+
+        if (this.resultObject != null && this.resultObject?.hasError == false) {
+            addTerminalMsg("Linhas retornadas ${this.resultObject?.result?.size ?: 0}")
+            val args: MutableList<Any> = mutableListOf()
+            args.add(getRandomHash())
+            args.add(Calendar.getInstance().timeInMillis)
+            args.add(command)
+            ConnectDB.insertHistoric(args)
+        } else if (this.resultObject != null && this.resultObject?.hasError == true) {
+            addTerminalMsg("Ocorreu um erro na execução ${this.resultObject?.errorMsg}")
+        }
 
     }
 

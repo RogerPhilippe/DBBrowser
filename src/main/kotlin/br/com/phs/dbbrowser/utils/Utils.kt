@@ -63,9 +63,6 @@ fun getRandomHash(): String {
     return md5(Calendar.getInstance().timeInMillis.toString())
 }
 
-fun String.safeStringToLongConverter(): Long {
-    return try {
-        this.toLong()
-    } catch (ex: Exception) { 0L }
-
+fun String.getLines(separator: String = ";"): List<String> {
+    return this.split(separator)
 }
