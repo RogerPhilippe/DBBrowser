@@ -12,16 +12,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.*
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.awt.event.MouseListener
-import java.awt.event.MouseMotionAdapter
+import java.awt.event.*
 import java.util.*
 import javax.swing.*
 import javax.swing.event.TableModelListener
 import javax.swing.filechooser.FileNameExtensionFilter
 import javax.swing.text.DefaultCaret
+import javax.swing.text.Document
+import javax.swing.undo.CannotUndoException
+import javax.swing.undo.UndoManager
 import kotlin.system.exitProcess
+
 
 class MainScreen: JFrame() {
 
@@ -32,6 +33,10 @@ class MainScreen: JFrame() {
     private val fileChooser = JFileChooser()
     private val filterDQLiteDB = FileNameExtensionFilter("DB file", "db")
     private var dbPath = ""
+    private var undoManager = UndoManager()
+    private lateinit var document: Document
+    lateinit var inputMap: InputMap
+    lateinit var actionMap: ActionMap
 
     // **** Components ****
     private val title = JLabel(appName)
@@ -191,6 +196,9 @@ class MainScreen: JFrame() {
         // **** SQL TEXT AREA ****
         sqlTextArea.font = sqlTextArea.font.deriveFont(14f)
         sqlTextArea.lineWrap = true
+        document = sqlTextArea.document
+        inputMap = sqlTextArea.getInputMap(JComponent.WHEN_FOCUSED)
+        actionMap = sqlTextArea.actionMap
         val tln = TextLineNumber(sqlTextArea)
         val sqlTextAreaScrollPane = JScrollPane(sqlTextArea)
         sqlTextAreaScrollPane.setRowHeaderView(tln)
@@ -272,6 +280,37 @@ class MainScreen: JFrame() {
         execUpdateDbBtn?.addMouseListener(handMouseClickListener({
             execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512_disable.png")
         }))
+
+        document.addUndoableEditListener {
+            undoManager.addEdit(it.edit)
+        }
+
+        inputMap.put(KeyStroke.getKeyStroke(
+            KeyEvent.VK_Z, Toolkit.getDefaultToolkit().menuShortcutKeyMask), "Undo")
+        inputMap.put(KeyStroke.getKeyStroke(
+            KeyEvent.VK_Z, Toolkit.getDefaultToolkit().menuShortcutKeyMask or InputEvent.SHIFT_MASK), "Redo")
+
+        actionMap.put("Undo", object : AbstractAction() {
+            override fun actionPerformed(e: ActionEvent?) {
+                try {
+                    if (undoManager.canUndo())
+                        undoManager.undo()
+                } catch (exp: CannotUndoException) {
+                    exp.printStackTrace()
+                }
+            }
+        })
+        actionMap.put("Redo", object : AbstractAction() {
+            override fun actionPerformed(e: ActionEvent?) {
+                try {
+                    if (undoManager.canRedo())
+                        undoManager.redo()
+                } catch (exp: CannotUndoException) {
+                    exp.printStackTrace()
+                }
+            }
+
+        })
 
     }
 
