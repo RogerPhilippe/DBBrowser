@@ -18,6 +18,7 @@ import java.awt.event.MouseListener
 import java.awt.event.MouseMotionAdapter
 import java.util.*
 import javax.swing.*
+import javax.swing.event.TableModelListener
 import javax.swing.filechooser.FileNameExtensionFilter
 import javax.swing.text.DefaultCaret
 import kotlin.system.exitProcess
@@ -37,6 +38,11 @@ class MainScreen: JFrame() {
     private val terminalTextArea = JTextArea()
     private val sqlTextArea = JTextArea()
     private val tablePanel = JPanel()
+
+    private var openDbBtn: JLabel? = null
+    private var executeBtn: JLabel? = null
+    private var executeSelectionBtn: JLabel? = null
+    private var execUpdateDbBtn: JLabel? = null
 
     init {
         mainScreenWidth = gd.displayMode.width * .70
@@ -147,14 +153,33 @@ class MainScreen: JFrame() {
         pnlBtn.layout = null
         pnlBtn.border = ScreenUtils().getBorder()
         pnlPrincipal.add(pnlBtn)
-        // **** BTNs PANEL PLAY ****
-        val playBtn = makeBtn("play_icon_512.png")
-        playBtn.setBounds(10, ((pnlBtn.height/2)-23), 46, 46)
-        pnlBtn.add(playBtn)
         // **** BTNs PANEL OPEN DB ****
-        val openDbBtn = makeBtn("open_database_icon.png")
-        openDbBtn.setBounds(playBtn.width+20, ((pnlBtn.height/2)-23), 46, 46)
-        pnlBtn.add(openDbBtn)
+        openDbBtn = makeBtn("open_database_icon.png")
+        if (openDbBtn != null) {
+            openDbBtn!!.setBounds(10, ((pnlBtn.height/2)-23), 46, 46)
+            pnlBtn.add(openDbBtn)
+        }
+        // **** BTNs PANEL PLAY ****
+        executeBtn = makeBtn("play_icon_512_disable.png")
+        if (executeBtn != null) {
+            val executeBtnX = (openDbBtn?.width?: 0)+20
+            executeBtn!!.setBounds(executeBtnX, ((pnlBtn.height/2)-23), 46, 46)
+            pnlBtn.add(executeBtn)
+        }
+        // **** BTNs PANEL EXECUTE SELECTION ****
+        executeSelectionBtn = makeBtn("execute_selection_disable.png")
+        if (executeSelectionBtn != null) {
+            val executeSelectionBtnX = ((executeBtn?.x?: 0) + (executeBtn?.width?: 0))+10
+            executeSelectionBtn!!.setBounds(executeSelectionBtnX, ((pnlBtn.height/2)-23), 46, 46)
+            pnlBtn.add(executeSelectionBtn)
+        }
+        // **** BTNs PANEL EXECUTE UPDATE ****
+        execUpdateDbBtn = makeBtn("thunder_icon_512_disable.png")
+        if (execUpdateDbBtn != null) {
+            val execUpdateDbBtnX = ((executeSelectionBtn?.x?: 0) + (executeSelectionBtn?.width?: 0))+10
+            execUpdateDbBtn!!.setBounds(execUpdateDbBtnX, ((pnlBtn.height/2)-23), 46, 46)
+            pnlBtn.add(execUpdateDbBtn)
+        }
 
         // **** SQL Panel ****
         val sqlPanel = JPanel()
@@ -196,8 +221,15 @@ class MainScreen: JFrame() {
         tablePanel.layout = null
         pnlPrincipal.add(tablePanel)
 
-        // BTN Listeners
-        playBtn.addMouseListener(handMouseClickListener({
+        this.setupListeners()
+
+        pane.add(pnlPrincipal)
+
+    }
+
+    private fun setupListeners() {
+
+        executeBtn?.addMouseListener(handMouseClickListener({
 
             if (dbPath.isEmpty()) {
                 addTerminalMsg("Selecione o banco de dados!")
@@ -216,7 +248,7 @@ class MainScreen: JFrame() {
 
         }))
 
-        openDbBtn.addMouseListener(handMouseClickListener({
+        openDbBtn?.addMouseListener(handMouseClickListener({
 
             fileChooser.addChoosableFileFilter(filterDQLiteDB)
             val returnVal = fileChooser.showOpenDialog(this)
@@ -225,10 +257,21 @@ class MainScreen: JFrame() {
                 dbPath = file.absolutePath
                 addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")
                 title.text = "$appName - ${file.absoluteFile}"
+                executeBtn?.icon = getIconScaled("play_icon_512.png")
+                executeSelectionBtn?.icon = getIconScaled("execute_selection.png")
             }
         }))
 
-        pane.add(pnlPrincipal)
+        executeSelectionBtn?.addMouseListener(handMouseClickListener({
+            val selectedText = sqlTextArea.selectedText
+            if (selectedText.isNotEmpty()) {
+                execute(selectedText)
+            }
+        }))
+
+        execUpdateDbBtn?.addMouseListener(handMouseClickListener({
+            execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512_disable.png")
+        }))
 
     }
 
@@ -244,6 +287,7 @@ class MainScreen: JFrame() {
             val table = JTable(data, columns)
             table.autoResizeMode = JTable.AUTO_RESIZE_OFF
             val rowTable = RowNumberTable(table)
+            table.model.addTableModelListener(getTableModelListener())
             val tableResultScrollPane = JScrollPane(
                 table,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
@@ -336,12 +380,24 @@ class MainScreen: JFrame() {
     }
 
     private fun makeBtn(iconName: String): JLabel {
-        val playBtnImg = ImageIcon(javaClass.classLoader.getResource(iconName)).image
+        val playBtnImg = getIconScaled(iconName).image
         val btn = JLabel(ImageIcon(getScaledImage(playBtnImg, 32, 32)))
         btn.horizontalAlignment = SwingConstants.CENTER
         btn.verticalAlignment = SwingConstants.CENTER
         btn.border = ScreenUtils().tlrbBorder(Color.GRAY)
         return  btn
+    }
+
+    private fun getIconScaled(iconName: String) : ImageIcon {
+        val btnImg = ImageIcon(javaClass.classLoader.getResource(iconName)).image
+        return ImageIcon(getScaledImage(btnImg, 32, 32))
+    }
+
+    private fun getTableModelListener(): TableModelListener {
+
+        return TableModelListener {
+            execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512.png")
+        }
     }
 
 }
