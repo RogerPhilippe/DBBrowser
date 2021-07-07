@@ -23,7 +23,6 @@ import javax.swing.undo.CannotUndoException
 import javax.swing.undo.UndoManager
 import kotlin.system.exitProcess
 
-
 class MainScreen: JFrame() {
 
     private val appName = "DBBrowser"
@@ -47,7 +46,6 @@ class MainScreen: JFrame() {
     private val terminalPanel = JPanel()
     private var openDbBtn: JLabel? = null
     private var executeBtn: JLabel? = null
-    private var executeSelectionBtn: JLabel? = null
     private var execUpdateDbBtn: JLabel? = null
     private val menuBar = JMenuBar()
     private lateinit var fileMenu: JMenu
@@ -57,6 +55,8 @@ class MainScreen: JFrame() {
         mainScreenHeight = gd.displayMode.height * .90
         devScreenMode = false
         hDocument.setHighlightStyle(HighlightedDocument.SQL_STYLE)
+        val recovered = readLastContent()
+        sqlTextPane.text = recovered
         createUI()
     }
 
@@ -117,7 +117,7 @@ class MainScreen: JFrame() {
         closeBtn.horizontalAlignment = SwingConstants.CENTER
         closeBtn.verticalAlignment = SwingConstants.CENTER
         closeBtn.addMouseListener(handMouseClickListener({
-            exitProcess(0)
+            closeApplication()
         }))
         closeBtn.border = ScreenUtils().getBorder()
         titleBarPanel.add(closeBtn)
@@ -147,7 +147,7 @@ class MainScreen: JFrame() {
         val openAction = JMenuItem("Open")
         val exitAction = JMenuItem(getLabel(0, EXIT))
         exitAction.addActionListener {
-            exitProcess(0)
+            closeApplication()
         }
         val cutAction = JMenuItem("Cut")
         val copyAction = JMenuItem("Copy")
@@ -171,28 +171,24 @@ class MainScreen: JFrame() {
         pnlPrincipal.add(pnlBtn)
         // **** BTNs PANEL OPEN DB ****
         openDbBtn = makeBtn("open_database_icon.png")
+        openDbBtn?.toolTipText = "Selecionar banco de dados"
         if (openDbBtn != null) {
             openDbBtn!!.setBounds(10, ((pnlBtn.height/2)-23), 46, 46)
             pnlBtn.add(openDbBtn)
         }
-        // **** BTNs PANEL PLAY ****
+        // **** BTNs PANEL EXECUTE COMMAND ****
         executeBtn = makeBtn("play_icon_512_disable.png")
+        executeBtn?.toolTipText = "Executar / Executar Seleção"
         if (executeBtn != null) {
             val executeBtnX = (openDbBtn?.width?: 0)+20
             executeBtn!!.setBounds(executeBtnX, ((pnlBtn.height/2)-23), 46, 46)
             pnlBtn.add(executeBtn)
         }
-        // **** BTNs PANEL EXECUTE SELECTION ****
-        executeSelectionBtn = makeBtn("execute_selection_disable.png")
-        if (executeSelectionBtn != null) {
-            val executeSelectionBtnX = ((executeBtn?.x?: 0) + (executeBtn?.width?: 0))+10
-            executeSelectionBtn!!.setBounds(executeSelectionBtnX, ((pnlBtn.height/2)-23), 46, 46)
-            pnlBtn.add(executeSelectionBtn)
-        }
         // **** BTNs PANEL EXECUTE UPDATE ****
         execUpdateDbBtn = makeBtn("thunder_icon_512_disable.png")
+        execUpdateDbBtn?.toolTipText = "Executar Alt. Tabela"
         if (execUpdateDbBtn != null) {
-            val execUpdateDbBtnX = ((executeSelectionBtn?.x?: 0) + (executeSelectionBtn?.width?: 0))+10
+            val execUpdateDbBtnX = ((executeBtn?.x?: 0) + (executeBtn?.width?: 0))+10
             execUpdateDbBtn!!.setBounds(execUpdateDbBtnX, ((pnlBtn.height/2)-23), 46, 46)
             pnlBtn.add(execUpdateDbBtn)
         }
@@ -205,7 +201,6 @@ class MainScreen: JFrame() {
         sqlPanel.layout = null
         pnlPrincipal.add(sqlPanel)
         // **** SQL TEXT AREA ****
-        sqlTextPane.font = sqlTextPane.font.deriveFont(14f)
         inputMap = sqlTextPane.getInputMap(JComponent.WHEN_FOCUSED)
         actionMap = sqlTextPane.actionMap
         val tln = TextLineNumber(sqlTextPane)
@@ -253,10 +248,25 @@ class MainScreen: JFrame() {
             }
 
             if (sqlTextPane.text.isNotEmpty()) {
-                val commands = sqlTextPane.text.replace("\n", "").split(";")
+
+                val selectedText = sqlTextPane.selectedText?: ""
+                val text = selectedText.ifEmpty { sqlTextPane.text }
+
+                val commandStr = StringBuilder()
+
+                text.split("\n").forEach { line ->
+                    if (line.isNotEmpty() && !line.startsWith("--"))
+                        commandStr.append(line)
+                }
+
+                if (commandStr.isEmpty())
+                    return@handMouseClickListener
+
+                val commands = commandStr.toString().split(";")
+
+                addTerminalMsg("Executando...")
+
                 for (command in commands) {
-                    if (command.isEmpty()) continue
-                    if (command.startsWith("--")) continue
                     execute(command)
                 }
             }
@@ -273,14 +283,6 @@ class MainScreen: JFrame() {
                 addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")
                 title.text = "$appName - ${file.absoluteFile}"
                 executeBtn?.icon = getIconScaled("play_icon_512.png")
-                executeSelectionBtn?.icon = getIconScaled("execute_selection.png")
-            }
-        }))
-
-        executeSelectionBtn?.addMouseListener(handMouseClickListener({
-            val selectedText = sqlTextPane.selectedText
-            if (selectedText.isNotEmpty()) {
-                execute(selectedText)
             }
         }))
 
@@ -306,8 +308,10 @@ class MainScreen: JFrame() {
         actionMap.put("Undo", object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent?) {
                 try {
-                    if (undoManager.canUndo())
-                        undoManager.undo()
+                    for(i in 1..2) {
+                        if (undoManager.canUndo())
+                            undoManager.undo()
+                    }
                 } catch (exp: CannotUndoException) {
                     exp.printStackTrace()
                 }
@@ -316,8 +320,10 @@ class MainScreen: JFrame() {
         actionMap.put("Redo", object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent?) {
                 try {
-                    if (undoManager.canRedo())
-                        undoManager.redo()
+                    for(i in 1..2) {
+                        if (undoManager.canRedo())
+                            undoManager.redo()
+                    }
                 } catch (exp: CannotUndoException) {
                     exp.printStackTrace()
                 }
@@ -330,7 +336,6 @@ class MainScreen: JFrame() {
     private fun execute(command: String) {
 
         tablePanel.removeAll()
-        addTerminalMsg("Executando...")
 
         SwingUtilities.invokeLater {
 
@@ -467,6 +472,11 @@ class MainScreen: JFrame() {
         return TableModelListener {
             execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512.png")
         }
+    }
+
+    private fun closeApplication() {
+        writeLastContent(sqlTextPane.text)
+        exitProcess(0)
     }
 
 }

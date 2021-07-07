@@ -6,9 +6,31 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.math.BigInteger
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.*
 
+fun writeLastContent(content: String) {
+
+    if (content.isEmpty()) {
+        if (File("last_content.sql").exists())
+            File("last_content.sql").delete()
+        return
+    }
+
+    val file = File("last_content.sql")
+    FileOutputStream(file).use {
+        it.write(content.toByteArray())
+    }
+
+}
+
+fun readLastContent(): String {
+    if (!File("last_content.sql").exists())
+        return ""
+    val file = File("last_content.sql")
+    return String(Files.readAllBytes(file.toPath()))
+}
 
 fun setOnProperties(properties: Map<String, Any>) {
 
