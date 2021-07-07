@@ -16,6 +16,9 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
     implementation(project("dbcore"))
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.0'
+
+    compile fileTree(dir: 'libs', include: '*.jar')
+
 }
 
 test {

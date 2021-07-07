@@ -8,6 +8,7 @@ import br.com.phs.dbbrowser.utils.*
 import br.com.phs.dbcore.ConnectDB
 import br.com.phs.dbcore.ResultObject
 import br.com.phs.dbcore.ResultTypeEnum
+import com.Ostermiller.Syntax.HighlightedDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -18,7 +19,6 @@ import javax.swing.*
 import javax.swing.event.TableModelListener
 import javax.swing.filechooser.FileNameExtensionFilter
 import javax.swing.text.DefaultCaret
-import javax.swing.text.Document
 import javax.swing.undo.CannotUndoException
 import javax.swing.undo.UndoManager
 import kotlin.system.exitProcess
@@ -34,14 +34,15 @@ class MainScreen: JFrame() {
     private val filterDQLiteDB = FileNameExtensionFilter("DB file", "db")
     private var dbPath = ""
     private var undoManager = UndoManager()
-    private lateinit var document: Document
     private lateinit var inputMap: InputMap
     private lateinit var actionMap: ActionMap
+
+    private val hDocument = HighlightedDocument()
 
     // **** Components ****
     private val title = JLabel(appName)
     private val terminalTextArea = JTextArea()
-    private val sqlTextArea = JTextArea()
+    private val sqlTextPane = JTextPane(hDocument)
     private val tablePanel = JPanel()
     private val terminalPanel = JPanel()
     private var openDbBtn: JLabel? = null
@@ -55,6 +56,7 @@ class MainScreen: JFrame() {
         mainScreenWidth = gd.displayMode.width * .70
         mainScreenHeight = gd.displayMode.height * .90
         devScreenMode = false
+        hDocument.setHighlightStyle(HighlightedDocument.SQL_STYLE)
         createUI()
     }
 
@@ -203,13 +205,11 @@ class MainScreen: JFrame() {
         sqlPanel.layout = null
         pnlPrincipal.add(sqlPanel)
         // **** SQL TEXT AREA ****
-        sqlTextArea.font = sqlTextArea.font.deriveFont(14f)
-        sqlTextArea.lineWrap = true
-        document = sqlTextArea.document
-        inputMap = sqlTextArea.getInputMap(JComponent.WHEN_FOCUSED)
-        actionMap = sqlTextArea.actionMap
-        val tln = TextLineNumber(sqlTextArea)
-        val sqlTextAreaScrollPane = JScrollPane(sqlTextArea)
+        sqlTextPane.font = sqlTextPane.font.deriveFont(14f)
+        inputMap = sqlTextPane.getInputMap(JComponent.WHEN_FOCUSED)
+        actionMap = sqlTextPane.actionMap
+        val tln = TextLineNumber(sqlTextPane)
+        val sqlTextAreaScrollPane = JScrollPane(sqlTextPane)
         sqlTextAreaScrollPane.setRowHeaderView(tln)
         sqlTextAreaScrollPane.horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
         sqlTextAreaScrollPane.setBounds(10, 16, sqlPanel.width-20, sqlPanel.height-26)
@@ -252,8 +252,8 @@ class MainScreen: JFrame() {
                 return@handMouseClickListener
             }
 
-            if (sqlTextArea.text.isNotEmpty()) {
-                val commands = sqlTextArea.text.replace("\n", "").split(";")
+            if (sqlTextPane.text.isNotEmpty()) {
+                val commands = sqlTextPane.text.replace("\n", "").split(";")
                 for (command in commands) {
                     if (command.isEmpty()) continue
                     if (command.startsWith("--")) continue
@@ -278,7 +278,7 @@ class MainScreen: JFrame() {
         }))
 
         executeSelectionBtn?.addMouseListener(handMouseClickListener({
-            val selectedText = sqlTextArea.selectedText
+            val selectedText = sqlTextPane.selectedText
             if (selectedText.isNotEmpty()) {
                 execute(selectedText)
             }
@@ -293,7 +293,7 @@ class MainScreen: JFrame() {
         menuBar.addMouseListener(defaultCursorListener())
         fileMenu.addMouseListener(defaultCursorListener())
 
-        document.addUndoableEditListener {
+        hDocument.addUndoableEditListener {
             undoManager.addEdit(it.edit)
         }
 
