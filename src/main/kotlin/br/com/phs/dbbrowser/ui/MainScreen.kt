@@ -35,19 +35,21 @@ class MainScreen: JFrame() {
     private var dbPath = ""
     private var undoManager = UndoManager()
     private lateinit var document: Document
-    lateinit var inputMap: InputMap
-    lateinit var actionMap: ActionMap
+    private lateinit var inputMap: InputMap
+    private lateinit var actionMap: ActionMap
 
     // **** Components ****
     private val title = JLabel(appName)
     private val terminalTextArea = JTextArea()
     private val sqlTextArea = JTextArea()
     private val tablePanel = JPanel()
-
+    private val terminalPanel = JPanel()
     private var openDbBtn: JLabel? = null
     private var executeBtn: JLabel? = null
     private var executeSelectionBtn: JLabel? = null
     private var execUpdateDbBtn: JLabel? = null
+    private val menuBar = JMenuBar()
+    private lateinit var fileMenu: JMenu
 
     init {
         mainScreenWidth = gd.displayMode.width * .70
@@ -123,8 +125,7 @@ class MainScreen: JFrame() {
         titleBarPanel.add(miniBtn)
 
         // **** MENU BAR ****
-        val menuBar = JMenuBar()
-        val fileMenu = JMenu(getLabel(0, FILE))
+        fileMenu = JMenu(getLabel(0, FILE))
         val editMenu = JMenu(getLabel(0, EDIT))
         val settingsMenu = JMenu(getLabel(0, SETTINGS))
         val aboutMenu = JMenu(getLabel(0, ABOUT))
@@ -207,7 +208,6 @@ class MainScreen: JFrame() {
         sqlPanel.add(sqlTextAreaScrollPane)
 
         // **** TERMINAL PANEL ****
-        val terminalPanel = JPanel()
         terminalPanel.setBounds(10, (mainScreenHeight.toInt()-180), mainScreenWidth.toInt()-20, 170)
         terminalPanel.border = BorderFactory.createTitledBorder(getLabel(0, TERMINAL))
         terminalPanel.layout = null
@@ -281,6 +281,11 @@ class MainScreen: JFrame() {
             execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512_disable.png")
         }))
 
+        // To avoid cursor bug
+        terminalPanel.addMouseListener(defaultCursorListener())
+        menuBar.addMouseListener(defaultCursorListener())
+        fileMenu.addMouseListener(defaultCursorListener())
+
         document.addUndoableEditListener {
             undoManager.addEdit(it.edit)
         }
@@ -317,40 +322,56 @@ class MainScreen: JFrame() {
     private fun execute(command: String) {
 
         addTerminalMsg("Executando...")
-        this.resultObject = ConnectDB.executeQuery(dbPath, command)
-        if (this.resultObject != null && this.resultObject?.hasError == false  &&
-            this.resultObject?.columns?.isNotEmpty() == true && this.resultObject?.resultType == ResultTypeEnum.SELECT) {
-            val columns: Array<String> = this.resultObject!!.columns
-            val data: Array<Array<Any>> = this.resultObject!!.result
-            // **** TABLE RESULT ****
-            val table = JTable(data, columns)
-            table.autoResizeMode = JTable.AUTO_RESIZE_OFF
-            val rowTable = RowNumberTable(table)
-            table.model.addTableModelListener(getTableModelListener())
-            val tableResultScrollPane = JScrollPane(
-                table,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-            )
-            tableResultScrollPane.setRowHeaderView(rowTable)
-            tableResultScrollPane.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
-            tableResultScrollPane.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
-            tablePanel.add(tableResultScrollPane)
-        } else if (this.resultObject != null && this.resultObject?.hasError == false) {
-            addTerminalMsg("Comando executado.")
+
+        SwingUtilities.invokeLater {
+
+            this.resultObject = ConnectDB.executeQuery(dbPath, command)
+            if (this.resultObject != null && this.resultObject?.hasError == false  &&
+                this.resultObject?.columns?.isNotEmpty() == true && this.resultObject?.resultType == ResultTypeEnum.SELECT) {
+                val columns: Array<String> = this.resultObject!!.columns
+                val data: Array<Array<Any>> = this.resultObject!!.result
+                // **** TABLE RESULT ****
+                val table = JTable(data, columns)
+                table.autoResizeMode = JTable.AUTO_RESIZE_OFF
+                val rowTable = RowNumberTable(table)
+                table.model.addTableModelListener(getTableModelListener())
+                val tableResultScrollPane = JScrollPane(
+                    table,
+                    JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                    JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+                )
+                tableResultScrollPane.setRowHeaderView(rowTable)
+                tableResultScrollPane.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
+                tableResultScrollPane.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
+                tablePanel.add(tableResultScrollPane)
+            } else if (this.resultObject != null && this.resultObject?.hasError == false) {
+                addTerminalMsg("Comando executado.")
+            }
+
+            if (this.resultObject != null && this.resultObject?.hasError == false) {
+                addTerminalMsg("Linhas retornadas ${this.resultObject?.result?.size ?: 0}")
+                val args: MutableList<Any> = mutableListOf()
+                args.add(getRandomHash())
+                args.add(Calendar.getInstance().timeInMillis)
+                args.add(command)
+                ConnectDB.insertHistoric(args)
+            } else if (this.resultObject != null && this.resultObject?.hasError == true) {
+                addTerminalMsg("Ocorreu um erro na execução ${this.resultObject?.errorMsg}")
+            }
+
         }
 
-        if (this.resultObject != null && this.resultObject?.hasError == false) {
-            addTerminalMsg("Linhas retornadas ${this.resultObject?.result?.size ?: 0}")
-            val args: MutableList<Any> = mutableListOf()
-            args.add(getRandomHash())
-            args.add(Calendar.getInstance().timeInMillis)
-            args.add(command)
-            ConnectDB.insertHistoric(args)
-        } else if (this.resultObject != null && this.resultObject?.hasError == true) {
-            addTerminalMsg("Ocorreu um erro na execução ${this.resultObject?.errorMsg}")
-        }
+    }
 
+    private fun defaultCursorListener(): MouseListener {
+        return object : MouseAdapter() {
+            override fun mouseEntered(e: MouseEvent?) {
+                cursor = Cursor(Cursor.DEFAULT_CURSOR)
+            }
+            override fun mouseExited(e: MouseEvent?) {
+                cursor = Cursor(Cursor.DEFAULT_CURSOR)
+            }
+        }
     }
 
     private fun handMouseClickListener(
