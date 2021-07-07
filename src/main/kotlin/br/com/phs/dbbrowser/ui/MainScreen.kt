@@ -293,6 +293,7 @@ class MainScreen: JFrame() {
         menuBar.addMouseListener(defaultCursorListener())
         fileMenu.addMouseListener(defaultCursorListener())
 
+        // TODO - Revisar
         hDocument.addUndoableEditListener {
             undoManager.addEdit(it.edit)
         }
