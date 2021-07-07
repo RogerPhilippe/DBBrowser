@@ -257,7 +257,6 @@ class MainScreen: JFrame() {
                 for (command in commands) {
                     if (command.isEmpty()) continue
                     if (command.startsWith("--")) continue
-                    tablePanel.removeAll()
                     execute(command)
                 }
             }
@@ -329,6 +328,7 @@ class MainScreen: JFrame() {
 
     private fun execute(command: String) {
 
+        tablePanel.removeAll()
         addTerminalMsg("Executando...")
 
         SwingUtilities.invokeLater {
