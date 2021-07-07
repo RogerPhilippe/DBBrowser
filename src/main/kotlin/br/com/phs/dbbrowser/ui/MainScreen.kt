@@ -96,8 +96,16 @@ class MainScreen: JFrame() {
             }))
         titleBarPanel.addMouseMotionListener(getMouseMotionListenerTitleBar())
 
+        // **** TITLE PANEL BAR ICON ****
+        val iconAppH = 20
+        val iconAppW = 20
+        val iconApp = JLabel(getIconScaled("dbbrowser_icon.png", iconAppH, iconAppW))
+        val iconAppY = (titleBarPanel.height/2) - (iconAppH/2)
+        iconApp.setBounds(10, iconAppY, iconAppW, iconAppH)
+        titleBarPanel.add(iconApp)
+
         // **** TITLE ****
-        title.setBounds(20, 0, titleBarPanel.width-32, titleBarPanel.height)
+        title.setBounds((iconApp.x+iconApp.width)+10, 0, titleBarPanel.width-32, titleBarPanel.height)
         titleBarPanel.add(title)
 
         // **** CLOSE BTN ****
@@ -448,9 +456,9 @@ class MainScreen: JFrame() {
         return  btn
     }
 
-    private fun getIconScaled(iconName: String) : ImageIcon {
+    private fun getIconScaled(iconName: String, h: Int = 32, w: Int = 32) : ImageIcon {
         val btnImg = ImageIcon(javaClass.classLoader.getResource(iconName)).image
-        return ImageIcon(getScaledImage(btnImg, 32, 32))
+        return ImageIcon(getScaledImage(btnImg, h, w))
     }
 
     private fun getTableModelListener(): TableModelListener {
