@@ -10,6 +10,8 @@ import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.*
 
+const val SQL_KEYWORDS = 0
+
 fun writeLastContent(content: String) {
 
     if (content.isEmpty()) {
@@ -30,6 +32,13 @@ fun readLastContent(): String {
         return ""
     val file = File("last_content.sql")
     return String(Files.readAllBytes(file.toPath()))
+}
+
+fun getKeywordsArray(): List<String> {
+    if (!File("sql_keywords").exists())
+        return listOf()
+    val file = File("sql_keywords")
+    return String(Files.readAllBytes(file.toPath())).split(";")
 }
 
 fun setOnProperties(properties: Map<String, Any>) {
@@ -87,4 +96,8 @@ fun getRandomHash(): String {
 
 fun String.getLines(separator: String = ";"): List<String> {
     return this.split(separator)
+}
+
+fun <T> concatenate(vararg lists: List<T>): List<T> {
+    return listOf(*lists).flatten()
 }

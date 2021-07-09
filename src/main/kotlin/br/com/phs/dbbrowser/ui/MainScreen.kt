@@ -18,10 +18,12 @@ import java.util.*
 import javax.swing.*
 import javax.swing.event.TableModelListener
 import javax.swing.filechooser.FileNameExtensionFilter
+import javax.swing.text.BadLocationException
 import javax.swing.text.DefaultCaret
 import javax.swing.undo.CannotUndoException
 import javax.swing.undo.UndoManager
 import kotlin.system.exitProcess
+
 
 class MainScreen: JFrame() {
 
@@ -35,6 +37,7 @@ class MainScreen: JFrame() {
     private var undoManager = UndoManager()
     private lateinit var inputMap: InputMap
     private lateinit var actionMap: ActionMap
+    private var suggestion: SuggestionPanel? = null
 
     private val hDocument = HighlightedDocument()
 
@@ -295,7 +298,6 @@ class MainScreen: JFrame() {
         menuBar.addMouseListener(defaultCursorListener())
         fileMenu.addMouseListener(defaultCursorListener())
 
-        // TODO - Revisar
         hDocument.addUndoableEditListener {
             undoManager.addEdit(it.edit)
         }
@@ -327,6 +329,31 @@ class MainScreen: JFrame() {
                 } catch (exp: CannotUndoException) {
                     exp.printStackTrace()
                 }
+            }
+
+        })
+
+        sqlTextPane.addKeyListener(object : KeyListener {
+            override fun keyTyped(e: KeyEvent) {
+                if (e.keyChar.code == KeyEvent.VK_ENTER) {
+                    if (suggestion?.insertSelection(true) == true) {
+                        e.consume()
+                    }
+                }
+            }
+
+            override fun keyReleased(e: KeyEvent) {
+                when {
+                    e.keyCode == KeyEvent.VK_DOWN -> suggestion?.moveDown()
+                    e.keyCode == KeyEvent.VK_UP -> suggestion?.moveUp()
+                    e.keyCode == KeyEvent.VK_BACK_SPACE -> showSuggestionLater()
+                    Character.isLetterOrDigit(e.keyChar) -> showSuggestionLater()
+                    Character.isWhitespace(e.keyChar) -> hideSuggestion()
+                }
+            }
+
+            override fun keyPressed(e: KeyEvent) {
+
             }
 
         })
@@ -477,6 +504,57 @@ class MainScreen: JFrame() {
     private fun closeApplication() {
         writeLastContent(sqlTextPane.text)
         exitProcess(0)
+    }
+
+    private fun showSuggestion() {
+        hideSuggestion()
+        val position: Int = sqlTextPane.caretPosition
+        val location: Point = try {
+            sqlTextPane.modelToView(position).location
+        } catch (e2: BadLocationException) {
+            e2.printStackTrace()
+            return
+        }
+        val text: String = sqlTextPane.text
+        var start = 0.coerceAtLeast(position - 1)
+        while (start > 0) {
+            if (!Character.isWhitespace(text[start])) {
+                start--
+            } else {
+                start++
+                break
+            }
+        }
+        if (start > position) {
+            return
+        }
+        val subWord = text.substring(start, position)
+        if (subWord.length < 2) {
+            return
+        }
+
+        val keyWordsUpper = getKeywordsArray()
+        val keyWordsLow = getKeywordsArray().map { it.lowercase(Locale.getDefault()) }
+        val keyWords = concatenate(keyWordsUpper, keyWordsLow)
+        val suggestionsArray = keyWords.filter { it.startsWith(subWord) }.toTypedArray()
+        val list: JList<*> = JList(suggestionsArray)
+        list.border = BorderFactory.createLineBorder(Color.GRAY, 1)
+        list.selectionMode = ListSelectionModel.SINGLE_SELECTION
+        list.selectedIndex = 0
+
+        suggestion = SuggestionPanel(sqlTextPane, list, position, subWord, location)
+        SwingUtilities.invokeLater { sqlTextPane.requestFocusInWindow() }
+    }
+
+    private fun hideSuggestion() {
+        if (suggestion != null) {
+            suggestion!!.hide()
+            suggestion = null
+        }
+    }
+
+    private fun showSuggestionLater() {
+        SwingUtilities.invokeLater(::showSuggestion)
     }
 
 }
