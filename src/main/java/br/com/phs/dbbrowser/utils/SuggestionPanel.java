@@ -37,7 +37,25 @@ public class SuggestionPanel {
         int height = (int) (mTextPane.getHeight() *.6);
         if (mList.getHeight() < height)
             height = mList.getHeight()+10;
-        mainSuggestPanel.setBounds(location.x, mTextPane.getBaseline(0, 0) + location.y, mList.getWidth(), height);
+
+        int adjust = 0;
+        int textPaneEndY = mTextPane.getY()+mTextPane.getHeight();
+        int mainSuggestPanelEndY = mTextPane.getBaseline(0, 0) + location.y + height;
+
+        // Set panel middle line
+        if ((mainSuggestPanelEndY+4) > textPaneEndY)
+            adjust = height / 2;
+
+        // Set panel above line
+        if ((mainSuggestPanelEndY +4 -adjust) > textPaneEndY)
+            adjust = height;
+
+        mainSuggestPanel.setBounds(
+                location.x,
+                mTextPane.getBaseline(0, 0) + location.y - adjust,
+                mList.getWidth(),
+                height
+        );
         mainSuggestPanel.add(mList);
         mTextPane.add(mainSuggestPanel);
 

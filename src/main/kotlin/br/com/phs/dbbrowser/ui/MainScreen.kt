@@ -357,12 +357,10 @@ class MainScreen: JFrame() {
 
             override fun keyReleased(e: KeyEvent) {
                 when {
-                    e.keyCode == KeyEvent.VK_DOWN -> {
-                        suggestion?.moveDown()
-                    }
-                    e.keyCode == KeyEvent.VK_UP -> {
-                        suggestion?.moveUp()
-                    }
+                    e.keyCode == KeyEvent.VK_DOWN -> suggestion?.moveDown()
+                    e.keyCode == KeyEvent.VK_UP -> suggestion?.moveUp()
+                    e.keyCode == KeyEvent.VK_LEFT -> hideSuggestion()
+                    e.keyCode == KeyEvent.VK_RIGHT -> hideSuggestion()
                     e.keyCode == KeyEvent.VK_ESCAPE -> hideSuggestion()
                     e.keyCode == KeyEvent.VK_BACK_SPACE -> showSuggestionLater()
                     Character.isLetterOrDigit(e.keyChar) -> showSuggestionLater()
@@ -556,6 +554,10 @@ class MainScreen: JFrame() {
         }
 
         val suggestionsArray = keyWords.filter { it.startsWith(subWord) }.toTypedArray()
+
+        if (suggestionsArray.isEmpty())
+            return
+
         val list: JList<String> = JList(suggestionsArray)
         list.border = BorderFactory.createLineBorder(Color.GRAY, 1)
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
