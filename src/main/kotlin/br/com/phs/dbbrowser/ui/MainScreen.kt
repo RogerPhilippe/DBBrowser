@@ -548,7 +548,10 @@ class MainScreen: JFrame() {
         if (start > position) {
             return
         }
-        val subWord = text.substring(start, position)
+        var subWord = text.substring(start, position)
+
+        subWord = subWord.replace("\n", "")
+
         if (subWord.length < 2) {
             return
         }
