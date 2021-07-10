@@ -7,23 +7,23 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
 public class SuggestionPanel {
-    private final JList mList;
-    private final JPopupMenu popupMenu;
+    private final JList<String> mList;
     private final String subWord;
     private final int insertionPosition;
     private final JTextPane mTextPane;
+    JPanel mainSuggestPanel = new JPanel();
 
-    public SuggestionPanel(JTextPane textPane, JList list, int position, String subWord, Point location) {
+    public SuggestionPanel(JTextPane textPane, JList<String> list, int position, String subWord, Point location) {
         this.mTextPane = textPane;
         this.mList = list;
         this.insertionPosition = position;
         this.subWord = subWord;
-        popupMenu = new JPopupMenu();
+        JPopupMenu popupMenu = new JPopupMenu();
         popupMenu.removeAll();
-        popupMenu.setOpaque(false);
-        popupMenu.setBorder(null);
         popupMenu.add(mList, BorderLayout.CENTER);
         popupMenu.show(mTextPane, location.x, mTextPane.getBaseline(0, 0) + location.y);
+
+        popupMenu.setVisible(false);
 
         mList.addMouseListener(new MouseAdapter() {
             @Override
@@ -34,6 +34,13 @@ public class SuggestionPanel {
             }
         });
 
+        int height = (int) (mTextPane.getHeight() *.6);
+        if (mList.getHeight() < height)
+            height = mList.getHeight()+10;
+        mainSuggestPanel.setBounds(location.x, mTextPane.getBaseline(0, 0) + location.y, mList.getWidth(), height);
+        mainSuggestPanel.add(mList);
+        mTextPane.add(mainSuggestPanel);
+
     }
 
     /**
@@ -42,19 +49,21 @@ public class SuggestionPanel {
      * @return - success operation
      */
     public boolean insertSelection(boolean removeJump) {
-        try {
-            final String selectedSuggestion = ((String) mList.getSelectedValue()).substring(subWord.length());
-            mTextPane.getDocument().insertString(insertionPosition, selectedSuggestion+" ", null);
-            if (removeJump) {
-                int position = mTextPane.getCaretPosition();
-                mTextPane.getDocument().remove(position-1, 1);
+        if (mList.getSelectedValue() != null) {
+            try {
+                final String selectedSuggestion = mList.getSelectedValue().substring(subWord.length());
+                mTextPane.getDocument().insertString(insertionPosition, selectedSuggestion+" ", null);
+                if (removeJump) {
+                    int position = mTextPane.getCaretPosition();
+                    mTextPane.getDocument().remove(position-1, 1);
+                }
+                return true;
+            } catch (BadLocationException e1) {
+                e1.printStackTrace();
             }
-            return true;
-        } catch (BadLocationException e1) {
-            e1.printStackTrace();
-        }
 
-        this.hide();
+            this.hide();
+        }
         return false;
     }
 
@@ -67,13 +76,12 @@ public class SuggestionPanel {
     }
 
     private void selectIndex(int index) {
-        final int position = mTextPane.getCaretPosition();
         mList.setSelectedIndex(index);
-        SwingUtilities.invokeLater(() -> mTextPane.setCaretPosition(position));
+        SwingUtilities.invokeLater(() -> mTextPane.setCaretPosition(insertionPosition));
     }
 
     public void hide() {
-        popupMenu.setVisible(false);
+        mainSuggestPanel.setVisible(false);
     }
 
 }

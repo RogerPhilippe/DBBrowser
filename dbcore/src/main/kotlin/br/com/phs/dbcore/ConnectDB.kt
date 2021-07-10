@@ -21,7 +21,7 @@ object ConnectDB {
 
             val stmt = conn.createStatement()
 
-            if (!command.contains("select", true)) {
+            if (!command.contains("select", true) && !command.contains("pragma", true)) {
                 try {
                     stmt.execute(command)
                 } catch (ex: Exception) {
@@ -106,6 +106,40 @@ object ConnectDB {
             pstmt.setString(3, args[2] as String)
             pstmt.executeUpdate()
             conn.close()
+        } catch (ex: Exception) {
+            println("Error: ${ex.message}")
+        }
+    }
+
+    @JvmStatic
+    fun getTablesName(dbPath: String): List<String> {
+
+        val tablesName = mutableListOf<String>()
+
+        try {
+            val conn = getSQLiteConnection(dbPath)
+            val sql = "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%';"
+            val stmt = conn.createStatement()
+            val rs = stmt.executeQuery(sql)
+            if (rs != null) {
+                while (rs.next()) {
+                    tablesName.add(rs.getString(1))
+                }
+            }
+        } catch (ex: Exception) {
+            println("Error: ${ex.message}")
+        }
+
+        return tablesName
+    }
+
+    @JvmStatic
+    fun getPragma(dbPath: String, tableName: String) {
+        try {
+            val conn = getSQLiteConnection(dbPath)
+            val sql = "pragma table_info('$tableName');"
+            val stmt = conn.createStatement()
+            val rs = stmt.executeQuery(sql)
         } catch (ex: Exception) {
             println("Error: ${ex.message}")
         }

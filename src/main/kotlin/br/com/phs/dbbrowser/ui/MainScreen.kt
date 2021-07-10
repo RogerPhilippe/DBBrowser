@@ -38,6 +38,7 @@ class MainScreen: JFrame() {
     private lateinit var inputMap: InputMap
     private lateinit var actionMap: ActionMap
     private var suggestion: SuggestionPanel? = null
+    private val keyWords = mutableListOf<String>()
 
     private val hDocument = HighlightedDocument()
 
@@ -60,6 +61,7 @@ class MainScreen: JFrame() {
         hDocument.setHighlightStyle(HighlightedDocument.SQL_STYLE)
         val recovered = readLastContent()
         sqlTextPane.text = recovered
+        sqlTextPane.isEditable = false
         createUI()
     }
 
@@ -76,7 +78,7 @@ class MainScreen: JFrame() {
 
     }
 
-    private fun addComponents(pane: Container) {
+    private fun addComponents(contentPane: Container) {
 
         // **** MAIN PANEL ****
         val pnlPrincipal = JPanel()
@@ -237,7 +239,7 @@ class MainScreen: JFrame() {
 
         this.setupListeners()
 
-        pane.add(pnlPrincipal)
+        contentPane.add(pnlPrincipal)
 
     }
 
@@ -283,9 +285,19 @@ class MainScreen: JFrame() {
             if (returnVal == JFileChooser.APPROVE_OPTION) {
                 val file = fileChooser.selectedFile
                 dbPath = file.absolutePath
+                // Add keyWords
+                val tablesName = ConnectDB.getTablesName(dbPath)
+                val tablesNameUpper = tablesName.map { it.uppercase(Locale.getDefault()) }
+                val tablesNameLow = tablesName.map { it.lowercase(Locale.getDefault()) }
+                val keyWordsList = getKeywordsArray()
+                val keyWordsUpper = keyWordsList.map { it.uppercase(Locale.getDefault()) }
+                val keyWordsLow = keyWordsList.map { it.lowercase(Locale.getDefault()) }
+                keyWords.addAll(concatenate(tablesNameUpper, tablesNameLow, keyWordsUpper, keyWordsLow))
+                // Info and enables
                 addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")
                 title.text = "$appName - ${file.absoluteFile}"
                 executeBtn?.icon = getIconScaled("play_icon_512.png")
+                sqlTextPane.isEditable = true
             }
         }))
 
@@ -338,14 +350,20 @@ class MainScreen: JFrame() {
                 if (e.keyChar.code == KeyEvent.VK_ENTER) {
                     if (suggestion?.insertSelection(true) == true) {
                         e.consume()
+                        sqlTextPane.caretColor = Color.BLACK
                     }
                 }
             }
 
             override fun keyReleased(e: KeyEvent) {
                 when {
-                    e.keyCode == KeyEvent.VK_DOWN -> suggestion?.moveDown()
-                    e.keyCode == KeyEvent.VK_UP -> suggestion?.moveUp()
+                    e.keyCode == KeyEvent.VK_DOWN -> {
+                        suggestion?.moveDown()
+                    }
+                    e.keyCode == KeyEvent.VK_UP -> {
+                        suggestion?.moveUp()
+                    }
+                    e.keyCode == KeyEvent.VK_ESCAPE -> hideSuggestion()
                     e.keyCode == KeyEvent.VK_BACK_SPACE -> showSuggestionLater()
                     Character.isLetterOrDigit(e.keyChar) -> showSuggestionLater()
                     Character.isWhitespace(e.keyChar) -> hideSuggestion()
@@ -353,10 +371,14 @@ class MainScreen: JFrame() {
             }
 
             override fun keyPressed(e: KeyEvent) {
-
             }
 
         })
+
+        sqlTextPane.addCaretListener { e ->
+            println("Row: ${TextUtils.getRow(e.dot, sqlTextPane)}")
+            println("Col: ${TextUtils.getColumn(e.dot, sqlTextPane)}")
+        }
 
     }
 
@@ -533,20 +555,20 @@ class MainScreen: JFrame() {
             return
         }
 
-        val keyWordsUpper = getKeywordsArray()
-        val keyWordsLow = getKeywordsArray().map { it.lowercase(Locale.getDefault()) }
-        val keyWords = concatenate(keyWordsUpper, keyWordsLow)
         val suggestionsArray = keyWords.filter { it.startsWith(subWord) }.toTypedArray()
-        val list: JList<*> = JList(suggestionsArray)
+        val list: JList<String> = JList(suggestionsArray)
         list.border = BorderFactory.createLineBorder(Color.GRAY, 1)
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
         list.selectedIndex = 0
 
         suggestion = SuggestionPanel(sqlTextPane, list, position, subWord, location)
         SwingUtilities.invokeLater { sqlTextPane.requestFocusInWindow() }
+
+        sqlTextPane.caretColor = Color.WHITE
     }
 
     private fun hideSuggestion() {
+        sqlTextPane.caretColor = Color.BLACK
         if (suggestion != null) {
             suggestion!!.hide()
             suggestion = null
