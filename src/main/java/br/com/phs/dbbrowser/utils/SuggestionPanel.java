@@ -11,53 +11,31 @@ public class SuggestionPanel {
     private final String subWord;
     private final int insertionPosition;
     private final JTextPane mTextPane;
-    JPanel mainSuggestPanel = new JPanel();
+    JPopupMenu popupMenu;
 
     public SuggestionPanel(JTextPane textPane, JList<String> list, int position, String subWord, Point location) {
         this.mTextPane = textPane;
         this.mList = list;
         this.insertionPosition = position;
         this.subWord = subWord;
-        JPopupMenu popupMenu = new JPopupMenu();
+        popupMenu = new JPopupMenu();
         popupMenu.removeAll();
+        popupMenu.setOpaque(false);
+        popupMenu.setBorder(null);
         popupMenu.add(mList, BorderLayout.CENTER);
         popupMenu.show(mTextPane, location.x, mTextPane.getBaseline(0, 0) + location.y);
-
-        popupMenu.setVisible(false);
 
         mList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseReleased(MouseEvent e) {
                 super.mouseReleased(e);
-                if (insertSelection(false))
+                if (insertSelection(false)) {
+                    mTextPane.setCaretColor(Color.BLACK);
+                    mTextPane.requestFocus();
                     hide();
+                }
             }
         });
-
-        int height = (int) (mTextPane.getHeight() *.6);
-        if (mList.getHeight() < height)
-            height = mList.getHeight()+10;
-
-        int adjust = 0;
-        int textPaneEndY = mTextPane.getY()+mTextPane.getHeight();
-        int mainSuggestPanelEndY = mTextPane.getBaseline(0, 0) + location.y + height;
-
-        // Set panel middle line
-        if ((mainSuggestPanelEndY+4) > textPaneEndY)
-            adjust = height / 2;
-
-        // Set panel above line
-        if ((mainSuggestPanelEndY +4 -adjust) > textPaneEndY)
-            adjust = height;
-
-        mainSuggestPanel.setBounds(
-                location.x,
-                mTextPane.getBaseline(0, 0) + location.y - adjust,
-                mList.getWidth(),
-                height
-        );
-        mainSuggestPanel.add(mList);
-        mTextPane.add(mainSuggestPanel);
 
     }
 
@@ -99,7 +77,7 @@ public class SuggestionPanel {
     }
 
     public void hide() {
-        mainSuggestPanel.setVisible(false);
+        popupMenu.setVisible(false);
     }
 
 }

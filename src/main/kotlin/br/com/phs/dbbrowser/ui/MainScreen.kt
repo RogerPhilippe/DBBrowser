@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import java.awt.*
 import java.awt.event.*
 import java.util.*
+import java.util.stream.Collectors
 import javax.swing.*
 import javax.swing.event.TableModelListener
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -556,12 +557,18 @@ class MainScreen: JFrame() {
             return
         }
 
-        val suggestionsArray = keyWords.filter { it.startsWith(subWord) }.toTypedArray()
+        val suggestionsFiltered = keyWords.filter { it.startsWith(subWord) }
+        val suggestionsToShow = suggestionsFiltered.stream()
+            .limit(20)
+            .collect(Collectors.toList())
 
-        if (suggestionsArray.isEmpty())
+        if (suggestionsToShow.isEmpty())
             return
 
-        val list: JList<String> = JList(suggestionsArray)
+        if (suggestionsFiltered.size > suggestionsToShow.size)
+            suggestionsToShow.add("...[+${suggestionsFiltered.size-suggestionsToShow.size}]")
+
+        val list: JList<String> = JList(suggestionsToShow.toTypedArray())
         list.border = BorderFactory.createLineBorder(Color.GRAY, 1)
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
         list.selectedIndex = 0
