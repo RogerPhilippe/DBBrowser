@@ -134,15 +134,26 @@ object ConnectDB {
     }
 
     @JvmStatic
-    fun getPragma(dbPath: String, tableName: String) {
+    fun getPragma(dbPath: String, tableName: String): List<String> {
+
+        val columns = mutableListOf<String>()
+        val conn = getSQLiteConnection(dbPath)
         try {
-            val conn = getSQLiteConnection(dbPath)
             val sql = "pragma table_info('$tableName');"
             val stmt = conn.createStatement()
             val rs = stmt.executeQuery(sql)
+            while (rs.next()) {
+                val name = rs.getString(2)
+                if (!name.isNullOrEmpty())
+                    columns.add(name)
+            }
         } catch (ex: Exception) {
             println("Error: ${ex.message}")
+        } finally {
+            conn.close()
         }
+
+        return columns
     }
 
 }

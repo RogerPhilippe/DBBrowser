@@ -54,6 +54,7 @@ class MainScreen: JFrame() {
     private var execUpdateDbBtn: JLabel? = null
     private val menuBar = JMenuBar()
     private lateinit var fileMenu: JMenu
+    private var openAction: JMenuItem? = null
 
     init {
         mainScreenWidth = gd.displayMode.width * .70
@@ -150,7 +151,7 @@ class MainScreen: JFrame() {
         menuBar.add(settingsMenu)
         menuBar.add(aboutMenu)
         val newAction = JMenuItem("New")
-        val openAction = JMenuItem("Open")
+        openAction = JMenuItem("Abrir BD")
         val exitAction = JMenuItem(getLabel(0, EXIT))
         exitAction.addActionListener {
             closeApplication()
@@ -279,28 +280,8 @@ class MainScreen: JFrame() {
 
         }))
 
-        openDbBtn?.addMouseListener(handMouseClickListener({
-
-            fileChooser.addChoosableFileFilter(filterDQLiteDB)
-            val returnVal = fileChooser.showOpenDialog(this)
-            if (returnVal == JFileChooser.APPROVE_OPTION) {
-                val file = fileChooser.selectedFile
-                dbPath = file.absolutePath
-                // Add keyWords
-                val tablesName = ConnectDB.getTablesName(dbPath)
-                val tablesNameUpper = tablesName.map { it.uppercase(Locale.getDefault()) }
-                val tablesNameLow = tablesName.map { it.lowercase(Locale.getDefault()) }
-                val keyWordsList = getKeywordsArray()
-                val keyWordsUpper = keyWordsList.map { it.uppercase(Locale.getDefault()) }
-                val keyWordsLow = keyWordsList.map { it.lowercase(Locale.getDefault()) }
-                keyWords.addAll(concatenate(tablesNameUpper, tablesNameLow, keyWordsUpper, keyWordsLow))
-                // Info and enables
-                addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")
-                title.text = "$appName - ${file.absoluteFile}"
-                executeBtn?.icon = getIconScaled("play_icon_512.png")
-                sqlTextPane.isEditable = true
-            }
-        }))
+        openDbBtn?.addMouseListener(handMouseClickListener({ openBD() }))
+        openAction?.addMouseListener(handMouseClickListener({ openBD() }))
 
         execUpdateDbBtn?.addMouseListener(handMouseClickListener({
             execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512_disable.png")
@@ -364,6 +345,7 @@ class MainScreen: JFrame() {
                     e.keyCode == KeyEvent.VK_RIGHT -> hideSuggestion()
                     e.keyCode == KeyEvent.VK_ESCAPE -> hideSuggestion()
                     e.keyCode == KeyEvent.VK_BACK_SPACE -> showSuggestionLater()
+                    '_' == e.keyChar -> showSuggestionLater()
                     Character.isLetterOrDigit(e.keyChar) -> showSuggestionLater()
                     Character.isWhitespace(e.keyChar) -> hideSuggestion()
                 }
@@ -589,6 +571,54 @@ class MainScreen: JFrame() {
 
     private fun showSuggestionLater() {
         SwingUtilities.invokeLater(::showSuggestion)
+    }
+
+    private fun openBD() {
+
+        addTerminalMsg("Carregando...")
+
+        fileChooser.addChoosableFileFilter(filterDQLiteDB)
+        val returnVal = fileChooser.showOpenDialog(this)
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+
+            addTerminalMsg("Por favor, aguarde...")
+
+            SwingUtilities.invokeLater {
+                val file = fileChooser.selectedFile
+                dbPath = file.absolutePath
+                // Add keyWords
+                val tablesName = ConnectDB.getTablesName(dbPath)
+                val columns = mutableListOf<String>()
+                for(tableName in tablesName) {
+                    val names = ConnectDB.getPragma(dbPath, tableName)
+                    names.forEach {
+                        if (!columns.contains(it))
+                            columns.add(it)
+                    }
+                }
+                val columnsUpperCase = columns.map { it.uppercase(Locale.getDefault()) }
+                val columnsLowCase = columns.map { it.lowercase(Locale.getDefault()) }
+                val tablesNameUpper = tablesName.map { it.uppercase(Locale.getDefault()) }
+                val tablesNameLow = tablesName.map { it.lowercase(Locale.getDefault()) }
+                val keyWordsList = getKeywordsArray()
+                val keyWordsUpper = keyWordsList.map { it.uppercase(Locale.getDefault()) }
+                val keyWordsLow = keyWordsList.map { it.lowercase(Locale.getDefault()) }
+                keyWords.addAll(concatenate(
+                    columnsUpperCase,
+                    columnsLowCase,
+                    tablesNameUpper,
+                    tablesNameLow,
+                    keyWordsUpper,
+                    keyWordsLow
+                ))
+                // Info and enables
+                addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")
+                title.text = "$appName - ${file.absoluteFile}"
+                executeBtn?.icon = getIconScaled("play_icon_512.png")
+                sqlTextPane.isEditable = true
+            }
+        } else addTerminalMsg("Nada selecionado!")
+
     }
 
 }
