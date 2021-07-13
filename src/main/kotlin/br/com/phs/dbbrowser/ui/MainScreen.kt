@@ -29,6 +29,7 @@ import kotlin.system.exitProcess
 class MainScreen: JFrame() {
 
     private val appName = "DBBrowser"
+    private val applicationConfig = getApplicationConfig()
     private var mouseDownCompCoords: Point? = null
     private val gd = GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice
     private var resultObject: ResultObject? = null
@@ -586,30 +587,44 @@ class MainScreen: JFrame() {
             SwingUtilities.invokeLater {
                 val file = fileChooser.selectedFile
                 dbPath = file.absolutePath
-                // Add keyWords
-                val tablesName = ConnectDB.getTablesName(dbPath)
-                val columns = mutableListOf<String>()
-                for(tableName in tablesName) {
-                    val names = ConnectDB.getPragma(dbPath, tableName)
-                    names.forEach {
-                        if (!columns.contains(it))
-                            columns.add(it)
+                // KeyWords
+                var tablesNameUpper: List<String>? = null
+                var tablesNameLow: List<String>? = null
+                var columnsUpperCase: List<String>? = null
+                var columnsLowCase: List<String>? = null
+                if (applicationConfig.tablesKeyWordEnabled) {
+                    val tablesName = ConnectDB.getTablesName(dbPath)
+                    tablesNameUpper = tablesName.map { it.uppercase(Locale.getDefault()) }
+                    tablesNameLow = tablesName.map { it.lowercase(Locale.getDefault()) }
+
+                    if (applicationConfig.columnsKeyWordEnabled) {
+                        val columns = mutableListOf<String>()
+                        for(tableName in tablesName) {
+                            val names = ConnectDB.getPragma(dbPath, tableName)
+                            names.forEach {
+                                if (!columns.contains(it))
+                                    columns.add(it)
+                            }
+                        }
+                        columnsUpperCase = columns.map { it.uppercase(Locale.getDefault()) }
+                        columnsLowCase = columns.map { it.lowercase(Locale.getDefault()) }
                     }
                 }
-                val columnsUpperCase = columns.map { it.uppercase(Locale.getDefault()) }
-                val columnsLowCase = columns.map { it.lowercase(Locale.getDefault()) }
-                val tablesNameUpper = tablesName.map { it.uppercase(Locale.getDefault()) }
-                val tablesNameLow = tablesName.map { it.lowercase(Locale.getDefault()) }
-                val keyWordsList = getKeywordsArray()
-                val keyWordsUpper = keyWordsList.map { it.uppercase(Locale.getDefault()) }
-                val keyWordsLow = keyWordsList.map { it.lowercase(Locale.getDefault()) }
+                var keyWordsUpper: List<String>? = null
+                var keyWordsLow: List<String>? = null
+                if (applicationConfig.sqlKeyWordEnabled) {
+                    val keyWordsList = getKeywordsArray()
+                    keyWordsUpper = keyWordsList.map { it.uppercase(Locale.getDefault()) }
+                    keyWordsLow = keyWordsList.map { it.lowercase(Locale.getDefault()) }
+                }
+                // Add keywords
                 keyWords.addAll(concatenate(
-                    columnsUpperCase,
-                    columnsLowCase,
-                    tablesNameUpper,
-                    tablesNameLow,
-                    keyWordsUpper,
-                    keyWordsLow
+                    columnsUpperCase?: listOf(),
+                    columnsLowCase?: listOf(),
+                    tablesNameUpper?: listOf(),
+                    tablesNameLow?: listOf(),
+                    keyWordsUpper?: listOf(),
+                    keyWordsLow?: listOf()
                 ))
                 // Info and enables
                 addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")

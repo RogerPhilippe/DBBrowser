@@ -1,5 +1,6 @@
 package br.com.phs.dbbrowser.utils
 
+import br.com.phs.dbbrowser.data.models.ApplicationConfig
 import java.awt.Image
 import java.io.File
 import java.io.FileInputStream
@@ -46,7 +47,7 @@ fun setOnProperties(properties: Map<String, Any>) {
     if (properties.isEmpty())
         return
 
-    val file = File("./resource/application.properties")
+    val file = File("application.properties")
     val prop = Properties()
 
     FileInputStream(file).use {
@@ -64,11 +65,11 @@ fun setOnProperties(properties: Map<String, Any>) {
 
 }
 
-fun getFromProperties(): Map<String, Any> {
+fun getFromProperties(pathName: String): Map<String, Any> {
 
-    var propertiesMap = hashMapOf<String, Any>()
+    val propertiesMap = hashMapOf<String, Any>()
 
-    val file = File("./resource/application.properties")
+    val file = File(pathName)
     val prop = Properties()
     FileInputStream(file).use { prop.load(it) }
 
@@ -79,6 +80,11 @@ fun getFromProperties(): Map<String, Any> {
             }
 
     return propertiesMap
+}
+
+fun getApplicationConfig(): ApplicationConfig {
+    val appProperties: Map<String, Any> = getFromProperties("application.properties")
+    return ApplicationConfig(appProperties)
 }
 
 fun getScaledImage(img: Image, w: Int, h: Int): Image {
