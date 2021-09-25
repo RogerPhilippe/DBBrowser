@@ -618,6 +618,7 @@ class MainScreen: JFrame() {
                     keyWordsLow = keyWordsList.map { it.lowercase(Locale.getDefault()) }
                 }
                 // Add keywords
+                keyWords.clear()
                 keyWords.addAll(concatenate(
                     columnsUpperCase?: listOf(),
                     columnsLowCase?: listOf(),
