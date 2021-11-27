@@ -11,13 +11,12 @@ repositories {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib"
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.6.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
     implementation(project("dbcore"))
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.0'
-
-    compile fileTree(dir: 'libs', include: '*.jar')
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2-native-mt'
+    implementation fileTree(dir: "libs", include: ["*.jar", '*.aar'])
 
 }
 

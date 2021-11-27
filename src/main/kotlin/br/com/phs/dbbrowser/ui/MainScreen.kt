@@ -1,5 +1,7 @@
 package br.com.phs.dbbrowser.ui
 
+import br.com.phs.dbbrowser.data.enums.SideMousePosition
+import br.com.phs.dbbrowser.ui.utils.MainJFrame
 import br.com.phs.dbbrowser.ui.utils.ScreenUtils
 import br.com.phs.dbbrowser.ui.utils.ScreenUtils.Companion.devScreenMode
 import br.com.phs.dbbrowser.ui.utils.ScreenUtils.Companion.mainScreenHeight
@@ -26,7 +28,7 @@ import javax.swing.undo.UndoManager
 import kotlin.system.exitProcess
 
 
-class MainScreen: JFrame() {
+class MainScreen: MainJFrame() {
 
     private val appName = "DBBrowser"
     private val applicationConfig = getApplicationConfig()
@@ -35,31 +37,46 @@ class MainScreen: JFrame() {
     private var resultObject: ResultObject? = null
     private val fileChooser = JFileChooser()
     private val filterDQLiteDB = FileNameExtensionFilter("DB file", "db")
-    private var dbPath = ""
     private var undoManager = UndoManager()
     private lateinit var inputMap: InputMap
     private lateinit var actionMap: ActionMap
     private var suggestion: SuggestionPanel? = null
     private val keyWords = mutableListOf<String>()
-
     private val hDocument = HighlightedDocument()
+    private var blockByModalScreen = false
+    private var thereIsSelectedDB = false
+    private var mousePosition = SideMousePosition.NONE
 
     // **** Components ****
+    private lateinit var pnlPrincipal: JPanel
+    private lateinit var titleBarPanel: JPanel
     private val title = JLabel(appName)
+    private lateinit var closeBtn: JLabel
+    private lateinit var miniBtn: JLabel
+    private lateinit var pnlBtn: JPanel
+    private lateinit var sqlPanel: JPanel
+    private lateinit var sqlTextAreaScrollPane: JScrollPane
     private val terminalTextArea = JTextArea()
+    private lateinit var terminalTextAreaScrollPane: JScrollPane
     private val sqlTextPane = JTextPane(hDocument)
     private val tablePanel = JPanel()
+    private lateinit var tableResultScrollPane: JScrollPane
     private val terminalPanel = JPanel()
-    private var openDbBtn: JLabel? = null
-    private var executeBtn: JLabel? = null
-    private var execUpdateDbBtn: JLabel? = null
+    private lateinit var openDbBtn: JLabel
+    private lateinit var executeBtn: JLabel
+    private lateinit var execUpdateDbBtn: JLabel
     private val menuBar = JMenuBar()
     private lateinit var fileMenu: JMenu
-    private var openAction: JMenuItem? = null
+    private lateinit var openAction: JMenuItem
+
+    private val minimumScreenWidth: Double?
+    private val minimumScreenHeight: Double?
 
     init {
         mainScreenWidth = gd.displayMode.width * .70
+        minimumScreenWidth = gd.displayMode.width * .40
         mainScreenHeight = gd.displayMode.height * .90
+        minimumScreenHeight = gd.displayMode.height * .70
         devScreenMode = false
         hDocument.setHighlightStyle(HighlightedDocument.SQL_STYLE)
         val recovered = readLastContent()
@@ -76,6 +93,9 @@ class MainScreen: JFrame() {
         isUndecorated = true
 
         addMouseMotionListener(getMouseMotionListener(this))
+        addMouseListener(handMouseClickListener(released = {
+            mousePosition = SideMousePosition.NONE
+        }))
 
         addComponents(this.contentPane)
 
@@ -84,13 +104,13 @@ class MainScreen: JFrame() {
     private fun addComponents(contentPane: Container) {
 
         // **** MAIN PANEL ****
-        val pnlPrincipal = JPanel()
+        pnlPrincipal = JPanel()
         pnlPrincipal.setBounds(0, 0, mainScreenWidth.toInt(), mainScreenHeight.toInt())
         pnlPrincipal.layout = null
         pnlPrincipal.border = ScreenUtils().tlrbBorder()
 
         // **** TITLE PANEL BAR ****
-        val titleBarPanel = JPanel()
+        titleBarPanel = JPanel()
         titleBarPanel.setBounds(0, 0, mainScreenWidth.toInt(), 32)
         titleBarPanel.layout = null
         titleBarPanel.border = ScreenUtils().tlrBorder()
@@ -109,7 +129,7 @@ class MainScreen: JFrame() {
         // **** TITLE PANEL BAR ICON ****
         val iconAppH = 20
         val iconAppW = 20
-        val iconApp = JLabel(getIconScaled("dbbrowser_icon.png", iconAppH, iconAppW))
+        val iconApp = JLabel(ScreenUtils().getIconScaled("dbbrowser_icon.png", iconAppH, iconAppW))
         val iconAppY = (titleBarPanel.height/2) - (iconAppH/2)
         iconApp.setBounds(10, iconAppY, iconAppW, iconAppH)
         titleBarPanel.add(iconApp)
@@ -120,7 +140,7 @@ class MainScreen: JFrame() {
 
         // **** CLOSE BTN ****
         val img = ImageIcon(javaClass.classLoader.getResource("close.png")).image
-        val closeBtn = JLabel(ImageIcon(getScaledImage(img, 20, 20)))
+        closeBtn = JLabel(ImageIcon(getScaledImage(img, 20, 20)))
         closeBtn.setBounds(mainScreenWidth.toInt()-32, 0, 32, 32)
         closeBtn.horizontalAlignment = SwingConstants.CENTER
         closeBtn.verticalAlignment = SwingConstants.CENTER
@@ -132,12 +152,14 @@ class MainScreen: JFrame() {
 
         // **** MINIMIZE BTN ****
         val miniImg = ImageIcon(javaClass.classLoader.getResource("minimize_icon.png")).image
-        val miniBtn = JLabel(ImageIcon(getScaledImage(miniImg, 20, 20)))
+        miniBtn = JLabel(ImageIcon(getScaledImage(miniImg, 20, 20)))
         miniBtn.setBounds(closeBtn.x-26, 0, 32, 32)
         miniBtn.horizontalAlignment = SwingConstants.CENTER
         miniBtn.verticalAlignment = SwingConstants.CENTER
         miniBtn.addMouseListener(handMouseClickListener({
-            state = Frame.ICONIFIED
+            if (!blockByModalScreen) {
+                state = Frame.ICONIFIED
+            }
         }))
         miniBtn.border = ScreenUtils().getBorder()
         titleBarPanel.add(miniBtn)
@@ -146,13 +168,23 @@ class MainScreen: JFrame() {
         fileMenu = JMenu(getLabel(0, FILE))
         val editMenu = JMenu(getLabel(0, EDIT))
         val settingsMenu = JMenu(getLabel(0, SETTINGS))
-        val aboutMenu = JMenu(getLabel(0, ABOUT))
+        val aboutMenu = JMenu("Ajuda")
+        val actionAbout = JMenuItem("Sobre DBBrowser")
+        actionAbout.addActionListener {
+            this.createAndOpenAboutBox()
+        }
         menuBar.add(fileMenu)
         menuBar.add(editMenu)
         menuBar.add(settingsMenu)
         menuBar.add(aboutMenu)
-        val newAction = JMenuItem("New")
-        openAction = JMenuItem("Abrir BD")
+        val newAction = JMenuItem(getLabel(0, NEW))
+        openAction = JMenuItem(getLabel(0, OPEN_DB))
+        val exportDB = JMenuItem(getLabel(0, EXPORT_DATABASE))
+        exportDB.addActionListener {
+            if (thereIsSelectedDB) {
+                this.createAndOpenExportTablesBoxSelection()
+            }
+        }
         val exitAction = JMenuItem(getLabel(0, EXIT))
         exitAction.addActionListener {
             closeApplication()
@@ -162,16 +194,18 @@ class MainScreen: JFrame() {
         val pasteAction = JMenuItem("Paste")
         fileMenu.add(newAction)
         fileMenu.add(openAction)
+        fileMenu.add(exportDB)
         fileMenu.addSeparator()
         fileMenu.add(exitAction)
         editMenu.add(cutAction)
         editMenu.add(copyAction)
         editMenu.add(pasteAction)
+        aboutMenu.add(actionAbout)
         menuBar.setBounds(1,titleBarPanel.height, mainScreenWidth.toInt()-2, 24)
         pnlPrincipal.add(menuBar)
 
         // **** BTNs PANEL ****
-        val pnlBtn = JPanel()
+        pnlBtn = JPanel()
         val yTmp = menuBar.y + menuBar.height
         pnlBtn.setBounds(1, yTmp, mainScreenWidth.toInt()-2, 70)
         pnlBtn.layout = null
@@ -179,30 +213,24 @@ class MainScreen: JFrame() {
         pnlPrincipal.add(pnlBtn)
         // **** BTNs PANEL OPEN DB ****
         openDbBtn = makeBtn("open_database_icon.png")
-        openDbBtn?.toolTipText = "Selecionar banco de dados"
-        if (openDbBtn != null) {
-            openDbBtn!!.setBounds(10, ((pnlBtn.height/2)-23), 46, 46)
-            pnlBtn.add(openDbBtn)
-        }
+        openDbBtn.toolTipText = "Selecionar banco de dados"
+        openDbBtn.setBounds(10, ((pnlBtn.height/2)-23), 46, 46)
+        pnlBtn.add(openDbBtn)
         // **** BTNs PANEL EXECUTE COMMAND ****
         executeBtn = makeBtn("play_icon_512_disable.png")
-        executeBtn?.toolTipText = "Executar / Executar Seleção"
-        if (executeBtn != null) {
-            val executeBtnX = (openDbBtn?.width?: 0)+20
-            executeBtn!!.setBounds(executeBtnX, ((pnlBtn.height/2)-23), 46, 46)
-            pnlBtn.add(executeBtn)
-        }
+        executeBtn.toolTipText = "Executar / Executar Seleção"
+        val executeBtnX = openDbBtn.width +20
+        executeBtn.setBounds(executeBtnX, ((pnlBtn.height/2)-23), 46, 46)
+        pnlBtn.add(executeBtn)
         // **** BTNs PANEL EXECUTE UPDATE ****
         execUpdateDbBtn = makeBtn("thunder_icon_512_disable.png")
-        execUpdateDbBtn?.toolTipText = "Executar Alt. Tabela"
-        if (execUpdateDbBtn != null) {
-            val execUpdateDbBtnX = ((executeBtn?.x?: 0) + (executeBtn?.width?: 0))+10
-            execUpdateDbBtn!!.setBounds(execUpdateDbBtnX, ((pnlBtn.height/2)-23), 46, 46)
-            pnlBtn.add(execUpdateDbBtn)
-        }
+        execUpdateDbBtn.toolTipText = "Executar Alt. Tabela"
+        val execUpdateDbBtnX = (executeBtn.x + executeBtn.width)+10
+        execUpdateDbBtn.setBounds(execUpdateDbBtnX, ((pnlBtn.height/2)-23), 46, 46)
+        pnlBtn.add(execUpdateDbBtn)
 
         // **** SQL Panel ****
-        val sqlPanel = JPanel()
+        sqlPanel = JPanel()
         val yTmp2 = pnlBtn.y + pnlBtn.height
         sqlPanel.setBounds(10, yTmp2, mainScreenWidth.toInt()-20, 300)
         sqlPanel.border = BorderFactory.createTitledBorder(getLabel(0, SQL_CMD_LABEL))
@@ -212,7 +240,7 @@ class MainScreen: JFrame() {
         inputMap = sqlTextPane.getInputMap(JComponent.WHEN_FOCUSED)
         actionMap = sqlTextPane.actionMap
         val tln = TextLineNumber(sqlTextPane)
-        val sqlTextAreaScrollPane = JScrollPane(sqlTextPane)
+        sqlTextAreaScrollPane = JScrollPane(sqlTextPane)
         sqlTextAreaScrollPane.setRowHeaderView(tln)
         sqlTextAreaScrollPane.horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
         sqlTextAreaScrollPane.setBounds(10, 16, sqlPanel.width-20, sqlPanel.height-26)
@@ -228,7 +256,7 @@ class MainScreen: JFrame() {
         terminalTextArea.isEditable = false
         val caret = (terminalTextArea.caret as DefaultCaret)
         caret.updatePolicy = DefaultCaret.ALWAYS_UPDATE
-        val terminalTextAreaScrollPane = JScrollPane()
+        terminalTextAreaScrollPane = JScrollPane()
         terminalTextAreaScrollPane.setViewportView(terminalTextArea)
         terminalTextAreaScrollPane.setBounds(10, 16, terminalPanel.width-20, terminalPanel.height-26)
         terminalPanel.add(terminalTextAreaScrollPane)
@@ -248,7 +276,7 @@ class MainScreen: JFrame() {
 
     private fun setupListeners() {
 
-        executeBtn?.addMouseListener(handMouseClickListener({
+        executeBtn.addMouseListener(handMouseClickListener({
 
             if (dbPath.isEmpty()) {
                 addTerminalMsg("Selecione o banco de dados!")
@@ -281,11 +309,11 @@ class MainScreen: JFrame() {
 
         }))
 
-        openDbBtn?.addMouseListener(handMouseClickListener({ openBD() }))
-        openAction?.addMouseListener(handMouseClickListener({ openBD() }))
+        openDbBtn.addMouseListener(handMouseClickListener({ openBD() }))
+        openAction.addMouseListener(handMouseClickListener({ openBD() }))
 
-        execUpdateDbBtn?.addMouseListener(handMouseClickListener({
-            execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512_disable.png")
+        execUpdateDbBtn.addMouseListener(handMouseClickListener({
+            execUpdateDbBtn.icon = ScreenUtils().getIconScaled("thunder_icon_512_disable.png")
         }))
 
         // To avoid cursor bug
@@ -358,8 +386,10 @@ class MainScreen: JFrame() {
         })
 
         sqlTextPane.addCaretListener { e ->
-            println("Row: ${TextUtils.getRow(e.dot, sqlTextPane)}")
-            println("Col: ${TextUtils.getColumn(e.dot, sqlTextPane)}")
+            if (devScreenMode) {
+                println("Row: ${TextUtils.getRow(e.dot, sqlTextPane)}")
+                println("Col: ${TextUtils.getColumn(e.dot, sqlTextPane)}")
+            }
         }
 
     }
@@ -380,7 +410,7 @@ class MainScreen: JFrame() {
                 table.autoResizeMode = JTable.AUTO_RESIZE_OFF
                 val rowTable = RowNumberTable(table)
                 table.model.addTableModelListener(getTableModelListener())
-                val tableResultScrollPane = JScrollPane(
+                tableResultScrollPane = JScrollPane(
                     table,
                     JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                     JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
@@ -444,29 +474,82 @@ class MainScreen: JFrame() {
         return object : MouseMotionAdapter() {
             override fun mouseMoved(e: MouseEvent) {
                 super.mouseMoved(e)
-                val currCoords = e.locationOnScreen
+                val mouseCoords = e.locationOnScreen
 
-                cursor = if (currCoords.x <= frame.x +12 && currCoords.y >= (mainScreenHeight.toInt()+frame.y)-20) {
+                cursor = if (mouseCoords.x <= frame.x +12 && mouseCoords.y >= (mainScreenHeight.toInt()+frame.y)-20) {
                     Cursor(Cursor.NE_RESIZE_CURSOR)
-                } else if (currCoords.x <= frame.x +12) {
-                    Cursor(Cursor.E_RESIZE_CURSOR)
-                } else if (currCoords.x >= (mainScreenWidth.toInt()+frame.x)-12 &&
-                    (currCoords.y >= (mainScreenHeight.toInt()+frame.y)-20)) {
-                    Cursor(Cursor.NW_RESIZE_CURSOR)
-                } else if (currCoords.x >= (mainScreenWidth.toInt()+frame.x)-12) {
+                } else if (mouseCoords!!.x <= frame.x +12) {
+                    mousePosition = SideMousePosition.LEFT
                     Cursor(Cursor.W_RESIZE_CURSOR)
-                } else if (currCoords.y >= (mainScreenHeight.toInt()+frame.y)-20) {
+                } else if (mouseCoords.x >= (mainScreenWidth.toInt()+frame.x)-12 &&
+                    (mouseCoords.y >= (mainScreenHeight.toInt()+frame.y)-20)) {
+                    Cursor(Cursor.NW_RESIZE_CURSOR)
+                } else if (mouseCoords.x >= (mainScreenWidth.toInt()+frame.x)-12) {
+                    mousePosition = SideMousePosition.RIGHT
+                    Cursor(Cursor.E_RESIZE_CURSOR)
+                } else if (mouseCoords.y >= (mainScreenHeight.toInt()+frame.y)-20) {
                     Cursor(Cursor.N_RESIZE_CURSOR)
                 } else {
+                    mousePosition = SideMousePosition.NONE
                     Cursor(Cursor.DEFAULT_CURSOR)
                 }
             }
+
+            override fun mouseDragged(e: MouseEvent?) {
+                super.mouseDragged(e)
+                val mouseCoords = e?.locationOnScreen
+                resize(mouseCoords)
+            }
+
+        }
+    }
+
+    private fun resize(mouseCoords: Point?) {
+
+        if (mouseCoords == null)
+            return
+
+        when(mousePosition) {
+            SideMousePosition.LEFT -> {
+                val diff = this.x - mouseCoords.x
+                val newScreenWidth = this.width + diff
+                resizeX(newScreenWidth, mouseCoords.x)
+            }
+            SideMousePosition.RIGHT -> {
+                val newScreenWidth = mouseCoords.x - this.x
+                resizeX(newScreenWidth)
+            }
+            else -> {}
+        }
+
+    }
+
+    private fun resizeX(newScreenWidth: Int, newX: Int = this.x) {
+        if (newScreenWidth >= (minimumScreenWidth ?: 0.0)) {
+            mainScreenWidth = newScreenWidth.toDouble()
+            setBounds(newX, this.y, mainScreenWidth.toInt(), mainScreenHeight.toInt())
+            pnlPrincipal.setSize(mainScreenWidth.toInt(), mainScreenHeight.toInt())
+            titleBarPanel.setSize(mainScreenWidth.toInt(), 32)
+            closeBtn.setLocation(mainScreenWidth.toInt() - 32, 0)
+            miniBtn.setLocation(closeBtn.x - 26, 0)
+            menuBar.setSize(mainScreenWidth.toInt() - 2, 24)
+            pnlBtn.setSize(mainScreenWidth.toInt() - 2, 70)
+            sqlPanel.setSize(mainScreenWidth.toInt() - 20, 300)
+            sqlTextAreaScrollPane.setSize(sqlPanel.width - 20, sqlPanel.height - 26)
+            tablePanel.setSize(mainScreenWidth.toInt() - 20, terminalPanel.y - (sqlPanel.y + sqlPanel.height) - 20)
+            tableResultScrollPane.setSize(tablePanel.width - 20, tablePanel.height - 26)
+            terminalPanel.setSize(mainScreenWidth.toInt() - 20, 170)
+            terminalTextAreaScrollPane.setSize(terminalPanel.width - 20, terminalPanel.height - 26)
         }
     }
 
     private fun getMouseMotionListenerTitleBar(): MouseMotionAdapter {
         return object : MouseMotionAdapter() {
             override fun mouseDragged(e: MouseEvent) {
+
+                if (blockByModalScreen)
+                    return
+
                 val currCoords = e.locationOnScreen
                 setLocation(currCoords.x - (mouseDownCompCoords?.x?: 0), currCoords.y - (mouseDownCompCoords?.y?: 0))
             }
@@ -485,7 +568,7 @@ class MainScreen: JFrame() {
     }
 
     private fun makeBtn(iconName: String): JLabel {
-        val playBtnImg = getIconScaled(iconName).image
+        val playBtnImg = ScreenUtils().getIconScaled(iconName).image
         val btn = JLabel(ImageIcon(getScaledImage(playBtnImg, 32, 32)))
         btn.horizontalAlignment = SwingConstants.CENTER
         btn.verticalAlignment = SwingConstants.CENTER
@@ -493,15 +576,10 @@ class MainScreen: JFrame() {
         return  btn
     }
 
-    private fun getIconScaled(iconName: String, h: Int = 32, w: Int = 32) : ImageIcon {
-        val btnImg = ImageIcon(javaClass.classLoader.getResource(iconName)).image
-        return ImageIcon(getScaledImage(btnImg, h, w))
-    }
-
     private fun getTableModelListener(): TableModelListener {
 
         return TableModelListener {
-            execUpdateDbBtn?.icon = getIconScaled("thunder_icon_512.png")
+            execUpdateDbBtn.icon = ScreenUtils().getIconScaled("thunder_icon_512.png")
         }
     }
 
@@ -630,11 +708,43 @@ class MainScreen: JFrame() {
                 // Info and enables
                 addTerminalMsg("Arquivo selecionado: ${file.absoluteFile}")
                 title.text = "$appName - ${file.absoluteFile}"
-                executeBtn?.icon = getIconScaled("play_icon_512.png")
+                executeBtn.icon = ScreenUtils().getIconScaled("play_icon_512.png")
                 sqlTextPane.isEditable = true
+                this.thereIsSelectedDB = true
             }
         } else addTerminalMsg("Nada selecionado!")
 
+    }
+
+    private fun createAndOpenExportTablesBoxSelection() {
+        EventQueue.invokeLater {
+            ExportTableBoxSelectionScreen(this).apply {
+                isVisible = true
+                isAlwaysOnTop = true
+            }
+        }
+    }
+
+    private fun createAndOpenAboutBox() {
+        EventQueue.invokeLater {
+            AboutScreen(this).apply {
+                isVisible = true
+                isAlwaysOnTop = true
+            }
+        }
+    }
+
+    override fun blockModalScreen() {
+        blockByModalScreen = true
+    }
+
+    override fun releaseModalScreen() {
+        blockByModalScreen = false
+    }
+
+    override fun addComponentListener(l: ComponentListener?) {
+        super.addComponentListener(l)
+        println("componentResized")
     }
 
 }

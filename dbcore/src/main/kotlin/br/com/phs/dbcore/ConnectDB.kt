@@ -118,7 +118,7 @@ object ConnectDB {
 
         try {
             val conn = getSQLiteConnection(dbPath)
-            val sql = "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%';"
+            val sql = "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'android_metadata';"
             val stmt = conn.createStatement()
             val rs = stmt.executeQuery(sql)
             if (rs != null) {

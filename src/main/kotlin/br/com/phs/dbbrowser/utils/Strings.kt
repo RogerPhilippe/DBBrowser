@@ -8,6 +8,9 @@ const val EXIT = 4
 const val SQL_CMD_LABEL = 5
 const val SQL_RESULT_LABEL = 6
 const val TERMINAL = 7
+const val NEW = 8
+const val OPEN_DB = 9
+const val EXPORT_DATABASE  =10
 
 fun getLabel(language: Int, index: Int): String {
     return when(language) {
@@ -29,6 +32,9 @@ private fun portuguese(index: Int): String {
         SQL_CMD_LABEL -> "Comando SQL"
         SQL_RESULT_LABEL -> "Resultado"
         TERMINAL -> "Terminal"
+        NEW -> "Novo"
+        OPEN_DB -> "Abrir BD"
+        EXPORT_DATABASE -> "Exportar BD"
         else -> "Unknown"
     }
 
