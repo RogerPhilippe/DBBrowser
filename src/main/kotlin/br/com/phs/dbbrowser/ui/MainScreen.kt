@@ -1,6 +1,7 @@
 package br.com.phs.dbbrowser.ui
 
 import br.com.phs.dbbrowser.data.enums.SideMousePosition
+import br.com.phs.dbbrowser.services.Server
 import br.com.phs.dbbrowser.ui.utils.MainJFrame
 import br.com.phs.dbbrowser.ui.utils.ScreenUtils
 import br.com.phs.dbbrowser.ui.utils.ScreenUtils.Companion.devScreenMode
@@ -25,6 +26,7 @@ import javax.swing.text.BadLocationException
 import javax.swing.text.DefaultCaret
 import javax.swing.undo.CannotUndoException
 import javax.swing.undo.UndoManager
+import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 
@@ -46,6 +48,7 @@ class MainScreen: MainJFrame() {
     private var blockByModalScreen = false
     private var thereIsSelectedDB = false
     private var mousePosition = SideMousePosition.NONE
+    private var sqliteRealTimeConnected = false
 
     // **** Components ****
     private lateinit var pnlPrincipal: JPanel
@@ -60,7 +63,7 @@ class MainScreen: MainJFrame() {
     private lateinit var terminalTextAreaScrollPane: JScrollPane
     private val sqlTextPane = JTextPane(hDocument)
     private val tablePanel = JPanel()
-    private lateinit var tableResultScrollPane: JScrollPane
+    private var tableResultScrollPane: JScrollPane? = null
     private val terminalPanel = JPanel()
     private lateinit var openDbBtn: JLabel
     private lateinit var executeBtn: JLabel
@@ -68,9 +71,14 @@ class MainScreen: MainJFrame() {
     private val menuBar = JMenuBar()
     private lateinit var fileMenu: JMenu
     private lateinit var openAction: JMenuItem
+    private val connectionStatus = JLabel("Estado: Parado")
+    private val connectionPort = JTextField("4500")
+    private val connectBtn = JButton("Conectar")
 
     private val minimumScreenWidth: Double?
     private val minimumScreenHeight: Double?
+
+    private val server = Server()
 
     init {
         mainScreenWidth = gd.displayMode.width * .70
@@ -82,7 +90,9 @@ class MainScreen: MainJFrame() {
         val recovered = readLastContent()
         sqlTextPane.text = recovered
         sqlTextPane.isEditable = false
+
         createUI()
+
     }
 
     private fun createUI() {
@@ -228,11 +238,40 @@ class MainScreen: MainJFrame() {
         val execUpdateDbBtnX = (executeBtn.x + executeBtn.width)+10
         execUpdateDbBtn.setBounds(execUpdateDbBtnX, ((pnlBtn.height/2)-23), 46, 46)
         pnlBtn.add(execUpdateDbBtn)
+        // Panel SQLite Realtime
+        val jSQLiteRealTimePanel = JPanel()
+        val jSQLiteRealTimePanelX = execUpdateDbBtn.x + execUpdateDbBtn.width + 10
+        jSQLiteRealTimePanel.layout = null
+        jSQLiteRealTimePanel.setBounds(jSQLiteRealTimePanelX, 5, 320, pnlBtn.height - 10)
+        val border = BorderFactory.createTitledBorder("SQLite RealTime")
+        border.titleFont = Font("SansSerif", Font.PLAIN, 11)
+        jSQLiteRealTimePanel.border = border
+        pnlBtn.add(jSQLiteRealTimePanel)
+        // Port Text Field
+        connectionPort.font = Font("SansSerif", Font.BOLD, 18)
+        connectionPort.componentOrientation = ComponentOrientation.RIGHT_TO_LEFT
+        connectionPort.setBounds(10, (jSQLiteRealTimePanel.height / 2), 65, 24)
+        jSQLiteRealTimePanel.add(connectionPort)
+        // Port Label
+        val portLabel = JLabel("Porta")
+        portLabel.font = Font("SansSerif", Font.BOLD, 11)
+        val portLabelX = connectionPort.x
+        val portLabelY = connectionPort.y - 18
+        portLabel.setBounds(portLabelX, portLabelY, 60, 20)
+        jSQLiteRealTimePanel.add(portLabel)
+        // SQLite Realtime Connect Btn
+        val connectBtnX = connectionPort.x + connectionPort.width + 10
+        connectBtn.setBounds(connectBtnX, (jSQLiteRealTimePanel.height / 2), 90, 24)
+        jSQLiteRealTimePanel.add(connectBtn)
+        // Connection Status Label
+        val connectionStatusX = connectBtn.x + connectBtn.width + 10
+        connectionStatus.setBounds(connectionStatusX, (jSQLiteRealTimePanel.height / 2), 120, 20)
+        jSQLiteRealTimePanel.add(connectionStatus)
 
         // **** SQL Panel ****
         sqlPanel = JPanel()
         val yTmp2 = pnlBtn.y + pnlBtn.height
-        sqlPanel.setBounds(10, yTmp2, mainScreenWidth.toInt()-20, 300)
+        sqlPanel.setBounds(10, yTmp2, mainScreenWidth.toInt()-20, (mainScreenHeight*.3).toInt())
         sqlPanel.border = BorderFactory.createTitledBorder(getLabel(0, SQL_CMD_LABEL))
         sqlPanel.layout = null
         pnlPrincipal.add(sqlPanel)
@@ -247,7 +286,7 @@ class MainScreen: MainJFrame() {
         sqlPanel.add(sqlTextAreaScrollPane)
 
         // **** TERMINAL PANEL ****
-        terminalPanel.setBounds(10, (mainScreenHeight.toInt()-180), mainScreenWidth.toInt()-20, 170)
+        terminalPanel.setBounds(10, (mainScreenHeight.toInt()-180), mainScreenWidth.toInt()-20, (mainScreenHeight*.18).toInt())
         terminalPanel.border = BorderFactory.createTitledBorder(getLabel(0, TERMINAL))
         terminalPanel.layout = null
         pnlPrincipal.add(terminalPanel)
@@ -278,6 +317,15 @@ class MainScreen: MainJFrame() {
 
         executeBtn.addMouseListener(handMouseClickListener({
 
+            if (sqliteRealTimeConnected) {
+
+                if (sqlTextPane.text.isNotEmpty()) {
+                    server.sendCommand(sqlTextPane.text)
+                }
+
+                return@handMouseClickListener
+            }
+
             if (dbPath.isEmpty()) {
                 addTerminalMsg("Selecione o banco de dados!")
                 return@handMouseClickListener
@@ -305,6 +353,67 @@ class MainScreen: MainJFrame() {
                 for (command in commands) {
                     execute(command)
                 }
+            }
+
+        }))
+
+        connectBtn.addMouseListener(handMouseClickListener({
+
+            if (sqliteRealTimeConnected) {
+
+                server.close()
+                connectBtn.text = "Conectar"
+                sqlTextPane.isEditable = false
+                sqliteRealTimeConnected = false
+                executeBtn.icon = ScreenUtils().getIconScaled("play_icon_512_disable.png")
+                connectionStatus.text = "Estado: Parado"
+
+            } else {
+
+                if (server.connecting) {
+                    server.close()
+                    connectBtn.text = "Conectar"
+                    sqlTextPane.isEditable = false
+                    sqliteRealTimeConnected = false
+                    executeBtn.icon = ScreenUtils().getIconScaled("play_icon_512_disable.png")
+                    connectionStatus.text = "Estado: Parado"
+                    return@handMouseClickListener
+                }
+
+                connectionStatus.text = "Estado: Esperando"
+                connectBtn.text = "Cancelar"
+                var port = 4500
+                val connectionPortText = connectionPort.text
+                if (!connectionPortText.isNullOrEmpty()) {
+                    port = Integer.parseInt(connectionPortText)
+                }
+
+                object : SwingWorker<Boolean, Void>() {
+
+                    override fun doInBackground(): Boolean {
+
+                        var result = false
+
+                        server.initServer(port = port) {
+                            connectionStatus.text = if (it) "Estado: Conectado" else "Estado: Parado"
+
+                            if (it) {
+                                connectBtn.text = "Desconectar"
+                                executeBtn.icon = ScreenUtils().getIconScaled("play_icon_512.png")
+                                sqlTextPane.isEditable = true
+                                sqliteRealTimeConnected = true
+                            }
+
+                            result = it
+
+                        }
+
+                        return result
+
+                    }
+
+                }.execute()
+
             }
 
         }))
@@ -415,9 +524,9 @@ class MainScreen: MainJFrame() {
                     JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                     JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
                 )
-                tableResultScrollPane.setRowHeaderView(rowTable)
-                tableResultScrollPane.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
-                tableResultScrollPane.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
+                tableResultScrollPane?.setRowHeaderView(rowTable)
+                tableResultScrollPane?.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
+                tableResultScrollPane?.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
                 tablePanel.add(tableResultScrollPane)
             } else if (this.resultObject != null && this.resultObject?.hasError == false) {
                 addTerminalMsg("Comando executado.")
@@ -488,6 +597,7 @@ class MainScreen: MainJFrame() {
                     mousePosition = SideMousePosition.RIGHT
                     Cursor(Cursor.E_RESIZE_CURSOR)
                 } else if (mouseCoords.y >= (mainScreenHeight.toInt()+frame.y)-20) {
+                    mousePosition = SideMousePosition.BOTTOM
                     Cursor(Cursor.N_RESIZE_CURSOR)
                 } else {
                     mousePosition = SideMousePosition.NONE
@@ -519,6 +629,10 @@ class MainScreen: MainJFrame() {
                 val newScreenWidth = mouseCoords.x - this.x
                 resizeX(newScreenWidth)
             }
+            SideMousePosition.BOTTOM -> {
+                val newScreenHeight = mouseCoords.y - this.y
+                resizeY(newScreenHeight)
+            }
             else -> {}
         }
 
@@ -537,9 +651,23 @@ class MainScreen: MainJFrame() {
             sqlPanel.setSize(mainScreenWidth.toInt() - 20, 300)
             sqlTextAreaScrollPane.setSize(sqlPanel.width - 20, sqlPanel.height - 26)
             tablePanel.setSize(mainScreenWidth.toInt() - 20, terminalPanel.y - (sqlPanel.y + sqlPanel.height) - 20)
-            tableResultScrollPane.setSize(tablePanel.width - 20, tablePanel.height - 26)
-            terminalPanel.setSize(mainScreenWidth.toInt() - 20, 170)
+            tableResultScrollPane?.setSize(tablePanel.width - 20, tablePanel.height - 26)
+            terminalPanel.setSize(mainScreenWidth.toInt() - 20, (mainScreenHeight*.18).toInt())
             terminalTextAreaScrollPane.setSize(terminalPanel.width - 20, terminalPanel.height - 26)
+        }
+    }
+
+    private fun resizeY(newScreenHeight: Int) {
+        if (newScreenHeight >= (minimumScreenHeight?: 0.0)) {
+            mainScreenHeight = newScreenHeight.toDouble()
+            setBounds(this.x, this.y, mainScreenWidth.toInt(), newScreenHeight)
+            pnlPrincipal.setSize(mainScreenWidth.toInt(), mainScreenHeight.toInt())
+            sqlPanel.setSize(mainScreenWidth.toInt() - 20, (mainScreenHeight*.3).toInt())
+            sqlTextAreaScrollPane.setSize(sqlPanel.width - 20, sqlPanel.height - 26)
+            terminalPanel.setBounds(10, (mainScreenHeight.toInt()-180), mainScreenWidth.toInt()-20, (mainScreenHeight*.18).toInt())
+            terminalTextAreaScrollPane.setSize(terminalPanel.width - 20, terminalPanel.height - 26)
+            val yTmp3 = sqlPanel.y + sqlPanel.height
+            tablePanel.setBounds(10, yTmp3+10, mainScreenWidth.toInt()-20, terminalPanel.y - (sqlPanel.y + sqlPanel.height)-20)
         }
     }
 
@@ -653,6 +781,9 @@ class MainScreen: MainJFrame() {
     }
 
     private fun openBD() {
+
+        if (sqliteRealTimeConnected)
+            return
 
         addTerminalMsg("Carregando...")
 
