@@ -70,9 +70,13 @@ Classe ClientConnection:
     
         }
     
+
+        /**
+        * Need return JSon like this: {"status":200, "columns": ${columnNames.asList()}, "content": $jsonArray}
+        */
         private fun executeQuery(command: String): String {
     
-            return ""
+            return "JSON"
     
         }
     

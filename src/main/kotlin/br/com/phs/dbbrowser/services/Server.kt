@@ -1,5 +1,7 @@
 package br.com.phs.dbbrowser.services
 
+import br.com.phs.dbbrowser.data.models.SQLiteRTResult
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.PrintWriter
@@ -8,7 +10,6 @@ import java.net.Socket
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.swing.SwingWorker
-import kotlin.system.exitProcess
 
 class Server {
 
@@ -63,7 +64,7 @@ class Server {
 
     }
 
-    fun sendCommand(command: String) {
+    fun sendCommand(command: String, done: (result: SQLiteRTResult?)->Unit) {
 
         try {
 
@@ -81,7 +82,8 @@ class Server {
 
         object : SwingWorker<Boolean, Void>() {
             override fun doInBackground(): Boolean {
-                listenSocket()
+                val result = listenSocket()
+                done(result)
                 return true
             }
 
@@ -89,9 +91,10 @@ class Server {
 
     }
 
-    private fun listenSocket() {
+    private fun listenSocket(): SQLiteRTResult? {
 
         println("Send, waiting for a response...")
+        var result: SQLiteRTResult? = null
 
         while (true) {
             try {
@@ -112,14 +115,21 @@ class Server {
                 val dateTimeFormat = SimpleDateFormat("dd/MM/yyyy")
 
                 println("[${dateTimeFormat.format(dateTimeNow)}]: $line")
+                val jsonObject = JSONObject(line)
+                val statusCode = jsonObject["status"].toString()
+                result = SQLiteRTResult(statusCode == "200", jsonObject)
+
                 break
 
             } catch (ex: Exception) {
                 println("Read failed: ${ex.message}")
                 ex.printStackTrace()
-                exitProcess(-1)
+                result = SQLiteRTResult(false, null)
+                break
             }
         }
+
+        return result
 
     }
 

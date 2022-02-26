@@ -15,6 +15,8 @@ import com.Ostermiller.Syntax.HighlightedDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.awt.*
 import java.awt.event.*
 import java.util.*
@@ -26,7 +28,6 @@ import javax.swing.text.BadLocationException
 import javax.swing.text.DefaultCaret
 import javax.swing.undo.CannotUndoException
 import javax.swing.undo.UndoManager
-import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 
@@ -36,7 +37,6 @@ class MainScreen: MainJFrame() {
     private val applicationConfig = getApplicationConfig()
     private var mouseDownCompCoords: Point? = null
     private val gd = GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice
-    private var resultObject: ResultObject? = null
     private val fileChooser = JFileChooser()
     private val filterDQLiteDB = FileNameExtensionFilter("DB file", "db")
     private var undoManager = UndoManager()
@@ -317,16 +317,7 @@ class MainScreen: MainJFrame() {
 
         executeBtn.addMouseListener(handMouseClickListener({
 
-            if (sqliteRealTimeConnected) {
-
-                if (sqlTextPane.text.isNotEmpty()) {
-                    server.sendCommand(sqlTextPane.text)
-                }
-
-                return@handMouseClickListener
-            }
-
-            if (dbPath.isEmpty()) {
+            if (!sqliteRealTimeConnected && dbPath.isEmpty()) {
                 addTerminalMsg("Selecione o banco de dados!")
                 return@handMouseClickListener
             }
@@ -346,13 +337,59 @@ class MainScreen: MainJFrame() {
                 if (commandStr.isEmpty())
                     return@handMouseClickListener
 
-                val commands = commandStr.toString().split(";")
+                if (sqliteRealTimeConnected) {
 
-                addTerminalMsg("Executando...")
+                    server.sendCommand(commandStr.toString()) {
 
-                for (command in commands) {
-                    execute(command)
+                        if (it?.result != null) {
+
+                            if (it.status) {
+
+                                val columns = it.result.get("columns") as JSONArray
+                                val content = it.result.get("content") as JSONArray
+
+                                val lines = mutableListOf<Array<Any>>()
+                                content.map { value -> (value as JSONObject) }.forEach { item ->
+
+                                    val lineColumns = mutableListOf<String>()
+                                    columns.forEach { column ->
+                                        lineColumns.add(item.get(column.toString()) as String)
+                                    }
+
+                                    lines.add(lineColumns.toTypedArray())
+
+                                }
+
+                                ResultObject().apply {
+
+                                    // Object attributes
+                                    this.columns = columns.map { line -> line.toString() }.toTypedArray()
+                                    this.result = lines.toTypedArray()
+
+                                    tablePanel.removeAll()
+                                    fillGrid(commandStr.toString(), this)
+                                }
+
+                            } else {
+                                addTerminalMsg("Erro: ${it.result["status"]}")
+                            }
+
+                        }
+
+                    }
+
+                } else {
+
+                    val commands = commandStr.toString().split(";")
+
+                    addTerminalMsg("Executando...")
+
+                    for (command in commands) {
+                        execute(command)
+                    }
+
                 }
+
             }
 
         }))
@@ -509,40 +546,53 @@ class MainScreen: MainJFrame() {
 
         SwingUtilities.invokeLater {
 
-            this.resultObject = ConnectDB.executeQuery(dbPath, command)
-            if (this.resultObject != null && this.resultObject?.hasError == false  &&
-                this.resultObject?.columns?.isNotEmpty() == true && this.resultObject?.resultType == ResultTypeEnum.SELECT) {
-                val columns: Array<String> = this.resultObject!!.columns
-                val data: Array<Array<Any>> = this.resultObject!!.result
-                // **** TABLE RESULT ****
-                val table = JTable(data, columns)
-                table.autoResizeMode = JTable.AUTO_RESIZE_OFF
-                val rowTable = RowNumberTable(table)
-                table.model.addTableModelListener(getTableModelListener())
-                tableResultScrollPane = JScrollPane(
-                    table,
-                    JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                    JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-                )
-                tableResultScrollPane?.setRowHeaderView(rowTable)
-                tableResultScrollPane?.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
-                tableResultScrollPane?.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
-                tablePanel.add(tableResultScrollPane)
-            } else if (this.resultObject != null && this.resultObject?.hasError == false) {
+            val resultObject = ConnectDB.executeQuery(dbPath, command)
+
+            if (!resultObject.hasError && resultObject.columns.isNotEmpty() &&
+                resultObject.resultType == ResultTypeEnum.SELECT) {
+
+                this.fillGrid(command, resultObject)
+
+            } else if (!resultObject.hasError) {
                 addTerminalMsg("Comando executado.")
             }
 
-            if (this.resultObject != null && this.resultObject?.hasError == false) {
-                addTerminalMsg("Linhas retornadas ${this.resultObject?.result?.size ?: 0}")
-                val args: MutableList<Any> = mutableListOf()
-                args.add(getRandomHash())
-                args.add(Calendar.getInstance().timeInMillis)
-                args.add(command)
-                ConnectDB.insertHistoric(args)
-            } else if (this.resultObject != null && this.resultObject?.hasError == true) {
-                addTerminalMsg("Ocorreu um erro na execução ${this.resultObject?.errorMsg}")
-            }
+        }
 
+    }
+
+    private fun fillGrid(command: String, resultObject: ResultObject?) {
+
+        resultObject?: return
+
+        val columns: Array<String> = resultObject.columns
+        val data: Array<Array<Any>> = resultObject.result
+        // **** TABLE RESULT ****
+        val table = JTable(data, columns)
+        table.autoResizeMode = JTable.AUTO_RESIZE_OFF
+        val rowTable = RowNumberTable(table)
+        table.model.addTableModelListener(getTableModelListener())
+        tableResultScrollPane = JScrollPane(
+            table,
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+            JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        )
+        tableResultScrollPane?.setRowHeaderView(rowTable)
+        tableResultScrollPane?.setCorner(JScrollPane.UPPER_LEFT_CORNER, rowTable.tableHeader)
+        tableResultScrollPane?.setBounds(10, 16, tablePanel.width-20, tablePanel.height-26)
+        tablePanel.add(tableResultScrollPane)
+
+        if (!resultObject.hasError) {
+
+            addTerminalMsg("Linhas retornadas ${resultObject.result.size}")
+            val args: MutableList<Any> = mutableListOf()
+            args.add(getRandomHash())
+            args.add(Calendar.getInstance().timeInMillis)
+            args.add(command)
+            ConnectDB.insertHistoric(args)
+
+        } else {
+            addTerminalMsg("Ocorreu um erro na execução ${resultObject.errorMsg}")
         }
 
     }
