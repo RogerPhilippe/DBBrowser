@@ -11,14 +11,15 @@ repositories {
 }
 
 dependencies {
+
+    implementation(project("dbcore"))
+
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.6.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
-    implementation(project("dbcore"))
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.0-native-mt'
+    implementation 'org.json:json:20211205'
     implementation fileTree(dir: "libs", include: ["*.jar", '*.aar'])
-    // https://mvnrepository.com/artifact/org.json/json
-    implementation group: 'org.json', name: 'json', version: '20211205'
 
 
 }

@@ -33,6 +33,7 @@ import kotlin.system.exitProcess
 
 class MainScreen: MainJFrame() {
 
+    private val version = "1.0.0-alphav1"
     private val appName = "DBBrowser"
     private val applicationConfig = getApplicationConfig()
     private var mouseDownCompCoords: Point? = null
@@ -81,6 +82,10 @@ class MainScreen: MainJFrame() {
     private val server = Server()
 
     init {
+
+        println("DBBrowser start...")
+        println("Version: $version")
+
         mainScreenWidth = gd.displayMode.width * .70
         minimumScreenWidth = gd.displayMode.width * .40
         mainScreenHeight = gd.displayMode.height * .90
