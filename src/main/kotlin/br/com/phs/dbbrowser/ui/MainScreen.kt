@@ -376,7 +376,7 @@ class MainScreen: MainJFrame() {
                                 }
 
                             } else {
-                                addTerminalMsg("Erro: ${it.result["status"]}")
+                                addTerminalMsg("Erro: ${it.result["status"]} - Content: ${it.result.get("content")}")
                             }
 
                         }
