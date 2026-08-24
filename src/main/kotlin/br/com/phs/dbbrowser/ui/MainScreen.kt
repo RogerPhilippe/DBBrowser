@@ -50,12 +50,15 @@ class MainScreen: MainJFrame() {
     private var thereIsSelectedDB = false
     private var mousePosition = SideMousePosition.NONE
     private var sqliteRealTimeConnected = false
+    private var isMaximized = false
+    private var windowedBoundsBeforeMaximize: Rectangle? = null
 
     // **** Components ****
     private lateinit var pnlPrincipal: JPanel
     private lateinit var titleBarPanel: JPanel
     private val title = JLabel(appName)
     private lateinit var closeBtn: JLabel
+    private lateinit var maximizeBtn: JLabel
     private lateinit var miniBtn: JLabel
     private lateinit var pnlBtn: JPanel
     private lateinit var sqlPanel: JPanel
@@ -78,6 +81,8 @@ class MainScreen: MainJFrame() {
 
     private val minimumScreenWidth: Double?
     private val minimumScreenHeight: Double?
+    private val defaultScreenWidth: Double
+    private val defaultScreenHeight: Double
 
     private val server = Server()
 
@@ -87,9 +92,11 @@ class MainScreen: MainJFrame() {
         println("Version: $version")
 
         mainScreenWidth = gd.displayMode.width * .70
-        minimumScreenWidth = gd.displayMode.width * .40
-        mainScreenHeight = gd.displayMode.height * .90
-        minimumScreenHeight = gd.displayMode.height * .70
+        minimumScreenWidth = gd.displayMode.width * .50
+        mainScreenHeight = gd.displayMode.height * .70
+        minimumScreenHeight = gd.displayMode.height * .50
+        defaultScreenWidth = mainScreenWidth
+        defaultScreenHeight = mainScreenHeight
         devScreenMode = false
         hDocument.setHighlightStyle(HighlightedDocument.SQL_STYLE)
         val recovered = readLastContent()
@@ -165,10 +172,24 @@ class MainScreen: MainJFrame() {
         closeBtn.border = ScreenUtils().getBorder()
         titleBarPanel.add(closeBtn)
 
+        // **** MAXIMIZE BTN ****
+        maximizeBtn = JLabel()
+        maximizeBtn.setBounds(closeBtn.x-26, 0, 32, 32)
+        maximizeBtn.horizontalAlignment = SwingConstants.CENTER
+        maximizeBtn.verticalAlignment = SwingConstants.CENTER
+        maximizeBtn.addMouseListener(handMouseClickListener({
+            if (!blockByModalScreen) {
+                toggleMaximizeRestore()
+            }
+        }))
+        maximizeBtn.border = ScreenUtils().getBorder()
+        updateMaximizeButtonIcon()
+        titleBarPanel.add(maximizeBtn)
+
         // **** MINIMIZE BTN ****
         val miniImg = ImageIcon(javaClass.classLoader.getResource("minimize_icon.png")).image
         miniBtn = JLabel(ImageIcon(getScaledImage(miniImg, 20, 20)))
-        miniBtn.setBounds(closeBtn.x-26, 0, 32, 32)
+        miniBtn.setBounds(maximizeBtn.x-26, 0, 32, 32)
         miniBtn.horizontalAlignment = SwingConstants.CENTER
         miniBtn.verticalAlignment = SwingConstants.CENTER
         miniBtn.addMouseListener(handMouseClickListener({
@@ -700,7 +721,8 @@ class MainScreen: MainJFrame() {
             pnlPrincipal.setSize(mainScreenWidth.toInt(), mainScreenHeight.toInt())
             titleBarPanel.setSize(mainScreenWidth.toInt(), 32)
             closeBtn.setLocation(mainScreenWidth.toInt() - 32, 0)
-            miniBtn.setLocation(closeBtn.x - 26, 0)
+            maximizeBtn.setLocation(closeBtn.x - 26, 0)
+            miniBtn.setLocation(maximizeBtn.x - 26, 0)
             menuBar.setSize(mainScreenWidth.toInt() - 2, 24)
             pnlBtn.setSize(mainScreenWidth.toInt() - 2, 70)
             sqlPanel.setSize(mainScreenWidth.toInt() - 20, 300)
@@ -769,6 +791,78 @@ class MainScreen: MainJFrame() {
     private fun closeApplication() {
         writeLastContent(sqlTextPane.text)
         exitProcess(0)
+    }
+
+    private fun toggleMaximizeRestore() {
+        if (isMaximized) {
+            restoreDefaultScreen()
+        } else {
+            maximizeScreen()
+        }
+        updateMaximizeButtonIcon()
+    }
+
+    private fun maximizeScreen() {
+        if (!isMaximized) {
+            windowedBoundsBeforeMaximize = bounds
+        }
+        val maxBounds = getCurrentScreenMaxBounds()
+        setLocation(maxBounds.x, maxBounds.y)
+        resizeX(maxBounds.width, maxBounds.x)
+        resizeY(maxBounds.height)
+        isMaximized = true
+    }
+
+    private fun restoreDefaultScreen() {
+        val restoreBounds = windowedBoundsBeforeMaximize
+        if (restoreBounds != null) {
+            setLocation(restoreBounds.x, restoreBounds.y)
+            resizeX(restoreBounds.width, restoreBounds.x)
+            resizeY(restoreBounds.height)
+        } else {
+            resizeX(defaultScreenWidth.toInt())
+            resizeY(defaultScreenHeight.toInt())
+        }
+        isMaximized = false
+    }
+
+    private fun updateMaximizeButtonIcon() {
+        maximizeBtn.icon = WindowActionIcon(isRestore = isMaximized)
+        maximizeBtn.text = ""
+    }
+
+    private fun getCurrentScreenMaxBounds(): Rectangle {
+        val frameCenter = Point(this.x + (this.width / 2), this.y + (this.height / 2))
+        val device = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.firstOrNull { screenDevice ->
+            screenDevice.defaultConfiguration.bounds.contains(frameCenter)
+        } ?: graphicsConfiguration.device
+        val gc = device.defaultConfiguration
+        val screenBounds = gc.bounds
+        val insets = Toolkit.getDefaultToolkit().getScreenInsets(gc)
+
+        return Rectangle(
+            screenBounds.x + insets.left,
+            screenBounds.y + insets.top,
+            screenBounds.width - insets.left - insets.right,
+            screenBounds.height - insets.top - insets.bottom
+        )
+    }
+
+    private class WindowActionIcon(private val isRestore: Boolean) : Icon {
+        override fun getIconWidth(): Int = 14
+        override fun getIconHeight(): Int = 14
+
+        override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
+            val g2 = g.create() as Graphics2D
+            g2.color = Color.BLACK
+            if (isRestore) {
+                g2.drawRect(x + 3, y + 1, 8, 8)
+                g2.drawRect(x + 1, y + 3, 8, 8)
+            } else {
+                g2.drawRect(x + 2, y + 2, 9, 9)
+            }
+            g2.dispose()
+        }
     }
 
     private fun showSuggestion() {
