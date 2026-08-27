@@ -1,10 +1,32 @@
-Exemplos de argumentos. é preferível adicionar aspas quando executado em linha de comando.
-/pathDB/dbname.db "select cIDProduct, cIDCompany from MC1_Product LIMIT 10"
-/pathDB/dbname.db "select * from MC1_Product LIMIT 10"
+# DBBrowser
 
-SQLite Realtime:
+Aplicativo Android para navegar e consultar bancos de dados SQLite.
+
+## Licença
+
+Este projeto é distribuído sob dupla licença:
+
+- **[AGPLv3](LICENSE)** — gratuita, para uso, modificação e redistribuição,
+  desde que o código-fonte das modificações seja compartilhado sob a mesma
+  licença (inclusive se o software for oferecido como serviço em rede).
+- **[Licença comercial](COMMERCIAL-LICENSE.md)** — para quem não pode ou não
+  quer cumprir as obrigações da AGPLv3 (ex.: incorporar em produto fechado,
+  oferecer como serviço sem liberar o código). Entre em contato:
+  rogerphilippepereira@gmail.com.
+
+Quer contribuir? Veja [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Uso via linha de comando
+
+Exemplos de argumentos. É preferível adicionar aspas quando executado em linha de comando.
+
+    /pathDB/dbname.db "select cIDProduct, cIDCompany from MC1_Product LIMIT 10"
+    /pathDB/dbname.db "select * from MC1_Product LIMIT 10"
+
+## SQLite Realtime
 
 Na classe application, adicionar a seguinte linha:
+
     ClientConnection().awaitCommand()
 
 Classe ClientConnection:
